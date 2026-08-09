@@ -20,7 +20,7 @@ export function SiteFooter({ logoSrc }: { logoSrc: string | null }) {
             </p>
             <p className="flex items-center gap-2">
               <Mail className="size-4 text-rage-orange" />
-              contact@ragelan.gg
+              contact@rushxp.re
             </p>
           </div>
         </div>
