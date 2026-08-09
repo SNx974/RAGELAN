@@ -45,18 +45,23 @@ export function Hero({
         className="pointer-events-none absolute inset-x-0 top-0 h-24 animate-scan-line bg-gradient-to-b from-transparent via-rage-orange/[0.07] to-transparent"
       />
 
-      {/* Halos flottants */}
+      {/*
+        Halos flottants. On n'anime QUE l'opacité : elle est composée sur le
+        GPU sans nouvelle rastérisation. Animer `scale` obligeait le moteur à
+        recalculer un flou de 130 px sur 420 px de côté à chaque frame, ce qui
+        saccadait toute la page.
+      */}
       <motion.div
         aria-hidden
-        animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.55, 0.35] }}
+        animate={{ opacity: [0.35, 0.55, 0.35] }}
         transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute -left-24 top-1/4 size-[420px] rounded-full bg-rage-red/20 blur-[130px]"
+        className="absolute -left-24 top-1/4 size-[420px] rounded-full bg-rage-red/20 blur-[130px] will-change-[opacity]"
       />
       <motion.div
         aria-hidden
-        animate={{ scale: [1.1, 1, 1.1], opacity: [0.3, 0.5, 0.3] }}
+        animate={{ opacity: [0.3, 0.5, 0.3] }}
         transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1.2 }}
-        className="absolute -right-24 bottom-1/4 size-[460px] rounded-full bg-rage-orange/20 blur-[140px]"
+        className="absolute -right-24 bottom-1/4 size-[460px] rounded-full bg-rage-orange/20 blur-[140px] will-change-[opacity]"
       />
 
       <motion.div

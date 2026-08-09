@@ -60,8 +60,11 @@ export function NeonTitle({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.5 }}
       transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+      // Lueur néon statique : `animate-neon-pulse` animait `text-shadow`,
+      // donc un repaint pleine largeur du titre à chaque frame, en continu.
       className={cn(
-        'font-display text-3xl font-bold tracking-tight text-white animate-neon-pulse sm:text-4xl',
+        'font-display text-3xl font-bold tracking-tight text-white sm:text-4xl',
+        '[text-shadow:0_0_10px_rgba(255,42,42,.55),0_0_32px_rgba(255,107,0,.35)]',
         className,
       )}
     >

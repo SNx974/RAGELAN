@@ -36,11 +36,23 @@
 
   body {
     @apply bg-abyss text-foreground antialiased;
+  }
+
+  /*
+    Ambiance de fond. `background-attachment: fixed` forcerait un repaint
+    plein écran à chaque frame de scroll ; un calque `position: fixed`
+    est promu sur sa propre couche et ne coûte plus rien au défilement.
+  */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
     background-image:
       radial-gradient(900px 480px at 12% -10%, rgba(255, 42, 42, 0.13), transparent 60%),
       radial-gradient(800px 420px at 88% 4%, rgba(255, 107, 0, 0.11), transparent 60%),
       radial-gradient(700px 380px at 50% 100%, rgba(255, 199, 0, 0.06), transparent 60%);
-    background-attachment: fixed;
   }
 
   ::selection {
@@ -93,9 +105,15 @@
       linear-gradient(120deg, #ff2a2a, #ff6b00, #ffc700) border-box;
   }
 
-  /* Carte de base du site */
+  /*
+    Carte de base du site.
+    `backdrop-blur` est l'une des propriétés les plus coûteuses du moteur de
+    rendu, et la page en affiche une douzaine simultanément. Le rayon est
+    volontairement modeste (12 px) : sur un fond sombre l'écart visuel avec
+    24 px est imperceptible, le coût est divisé par deux.
+  */
   .glass-card {
-    @apply relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-xl;
+    @apply relative overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025] backdrop-blur-md;
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.06),
       0 24px 60px -30px rgba(0, 0, 0, 0.9);

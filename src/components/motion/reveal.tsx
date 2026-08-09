@@ -32,10 +32,13 @@ export function Reveal({
 }) {
   const offset = DIRECTIONS[direction];
   return (
+    // Uniquement opacité + translation : les deux sont composées sur le GPU.
+    // Animer `filter: blur()` déclenchait un repaint par frame sur chaque
+    // bloc révélé, ce qui saccadait le scroll.
     <motion.div
       className={className}
-      initial={{ opacity: 0, ...offset, filter: 'blur(6px)' }}
-      whileInView={{ opacity: 1, x: 0, y: 0, filter: 'blur(0px)' }}
+      initial={{ opacity: 0, ...offset }}
+      whileInView={{ opacity: 1, x: 0, y: 0 }}
       viewport={{ once: true, amount: 0.2 }}
       transition={{ duration, delay, ease: EASE }}
     >

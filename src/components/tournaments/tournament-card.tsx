@@ -56,6 +56,10 @@ export function TournamentCard({ tournament: t }: { tournament: TournamentCardDa
                 src={t.coverImage}
                 alt=""
                 aria-hidden
+                // `lazy` + `async` : sans cela les 9 visuels sont décodés d'un
+                // bloc sur le thread principal au chargement de la grille.
+                loading="lazy"
+                decoding="async"
                 className="pointer-events-none absolute inset-0 size-full scale-105 object-cover opacity-30 transition-all duration-700 group-hover:scale-110 group-hover:opacity-50"
               />
               {/* Voile sombre : garantit la lisibilité du texte par-dessus. */}
