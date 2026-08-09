@@ -1,0 +1,20 @@
+* text=auto eol=lf
+
+# Scripts exécutés dans le conteneur Linux : un CRLF casserait le shebang
+# ("/bin/sh^M: bad interpreter").
+*.sh text eol=lf
+Dockerfile text eol=lf
+docker-entrypoint.sh text eol=lf
+
+# Scripts Windows : doivent rester en CRLF
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binaires
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.svg binary
+*.pdf binary
+*.ico binary

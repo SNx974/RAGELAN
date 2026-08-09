@@ -1,0 +1,485 @@
+// ══════════════════════════════════════════════════════════════
+//  R.A.G.E LAN 2 — Schéma Prisma (provider PostgreSQL)
+//  npx prisma migrate dev --name init && npm run db:seed
+// ══════════════════════════════════════════════════════════════
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // citext : emails insensibles à la casse au niveau du moteur.
+  extensions = [citext]
+}
+
+// ─────────────────────────── ENUMS ───────────────────────────
+
+enum Role {
+  PLAYER
+  ORGANIZER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PaymentStatus {
+  PENDING // inscrit, rien de réglé
+  PAID_ONLINE // réglé via Stripe
+  PAY_ON_SITE // a choisi de payer à l'entrée
+  PAID_ON_SITE // encaissé par le staff le jour J
+  REFUNDED
+}
+
+enum RegistrationStatus {
+  PENDING // en attente de validation admin
+  CONFIRMED // place validée
+  WAITLIST // liste d'attente (tournoi complet)
+  CHECKED_IN // présent physiquement le jour J
+  CANCELLED
+  NO_SHOW
+}
+
+enum RegistrationType {
+  TEAM_CAPTAIN // capitaine qui inscrit son roster
+  TEAM_MEMBER // membre déclaré par le capitaine
+  SOLO // joueur solo
+}
+
+enum SeatFormat {
+  FIXED // place fixe attribuée pour tout l'événement
+  ROTATION // rotation sur un pool de postes
+}
+
+enum BracketType {
+  SINGLE_ELIMINATION
+  DOUBLE_ELIMINATION
+  GROUPS_THEN_PLAYOFFS
+  ROUND_ROBIN
+  SWISS
+}
+
+enum BracketStatus {
+  DRAFT
+  SEEDING
+  RUNNING
+  COMPLETED
+}
+
+enum MatchStatus {
+  PENDING // participants pas encore connus
+  READY // les deux slots sont remplis
+  IN_PROGRESS
+  COMPLETED
+  WALKOVER
+  CANCELLED
+}
+
+enum BracketSide {
+  WINNERS
+  LOSERS
+  GRAND_FINAL
+  GROUP
+}
+
+enum SeatKind {
+  PC
+  CONSOLE
+  TABLE_TCG
+  STAFF
+  FREEPLAY
+}
+
+// ─────────────────────────── USERS ───────────────────────────
+
+model User {
+  id           String  @id @default(uuid()) @db.Uuid
+  email        String  @unique @db.Citext
+  passwordHash String  @map("password_hash")
+  firstName    String  @map("first_name") @db.VarChar(80)
+  lastName     String  @map("last_name") @db.VarChar(80)
+  pseudo       String? @unique @db.VarChar(40)
+
+  birthDate DateTime @map("birth_date") @db.Date
+  phone     String   @db.VarChar(30)
+
+  addressLine String @map("address_line") @db.VarChar(180)
+  postalCode  String @map("postal_code") @db.VarChar(12)
+  city        String @db.VarChar(90)
+  country     String @default("France") @db.VarChar(80)
+
+  role          Role      @default(PLAYER)
+  emailVerified DateTime? @map("email_verified")
+  avatarUrl     String?   @map("avatar_url")
+
+  // Décharge parentale obligatoire pour les mineurs
+  guardianName  String? @map("guardian_name") @db.VarChar(160)
+  guardianPhone String? @map("guardian_phone") @db.VarChar(30)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  registrations     Registration[]
+  captainOf         Team[]              @relation("TeamCaptain")
+  teamMemberships   TeamMember[]
+  organizerScopes   OrganizerAssignment[]
+  seatPlacements    SeatPlacement[]
+  payments          Payment[]
+  auditLogs         AuditLog[]          @relation("AuditActor")
+  checkInsPerformed Registration[]      @relation("CheckedInBy")
+  sessions          Session[]
+
+  @@index([role])
+  @@index([lastName, firstName])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash")
+  userAgent String?  @map("user_agent")
+  ip        String?  @db.Inet
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// ───────────────────────── TOURNAMENTS ───────────────────────
+
+model Tournament {
+  id       String @id @default(uuid()) @db.Uuid
+  slug     String @unique @db.VarChar(60)
+  name     String @db.VarChar(120)
+  tagline  String @db.VarChar(180)
+  platform String @db.VarChar(40) // PC / Console / Table
+
+  // Capacités (source de vérité pour le placement de salle)
+  maxPlayers  Int @map("max_players")
+  tableCount  Int @map("table_count")
+  chairCount  Int @map("chair_count")
+  teamSize    Int @default(1) @map("team_size") // 1 = solo
+  maxTeams    Int @default(0) @map("max_teams") // 0 = tournoi solo
+  seatFormat  SeatFormat @default(FIXED) @map("seat_format")
+  playersPerTable Int? @map("players_per_table")
+
+  formatLabel String      @map("format_label") @db.VarChar(160)
+  bracketType BracketType @default(SINGLE_ELIMINATION) @map("bracket_type")
+
+  entryFeeCents Int     @default(0) @map("entry_fee_cents")
+  accentFrom    String  @default("#FF2A2A") @map("accent_from") @db.VarChar(9)
+  accentTo      String  @default("#FF6B00") @map("accent_to") @db.VarChar(9)
+  coverImage    String? @map("cover_image")
+  rulesUrl      String? @map("rules_url")
+  sortOrder     Int     @default(0) @map("sort_order")
+
+  registrationOpen Boolean   @default(true) @map("registration_open")
+  startsAt         DateTime? @map("starts_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  registrations Registration[]
+  teams         Team[]
+  brackets      Bracket[]
+  seats         Seat[]
+  organizers    OrganizerAssignment[]
+
+  @@index([sortOrder])
+  @@map("tournaments")
+}
+
+/// Interrupteur global des inscriptions (une seule ligne, id = 1).
+model EventSettings {
+  id                     Int      @id @default(1)
+  eventName              String   @default("R.A.G.E LAN 2") @map("event_name")
+  registrationsOpen      Boolean  @default(true) @map("registrations_open")
+  registrationsCloseAt   DateTime? @map("registrations_close_at")
+  venueName              String   @default("") @map("venue_name")
+  venueAddress           String   @default("") @map("venue_address")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("event_settings")
+}
+
+// ─────────────────────────── TEAMS ───────────────────────────
+
+model Team {
+  id           String  @id @default(uuid()) @db.Uuid
+  tournamentId String  @map("tournament_id") @db.Uuid
+  captainId    String  @map("captain_id") @db.Uuid
+  name         String  @db.VarChar(60)
+  tag          String? @db.VarChar(8)
+  logoUrl      String? @map("logo_url")
+  seed         Int? // tête de série, assignée par l'admin
+  checkedIn    Boolean @default(false) @map("checked_in")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tournament    Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  captain       User            @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
+  members       TeamMember[]
+  registrations Registration[]
+  seatPlacements SeatPlacement[]
+  homeMatches   Match[]         @relation("MatchTeamA")
+  awayMatches   Match[]         @relation("MatchTeamB")
+  wonMatches    Match[]         @relation("MatchWinner")
+
+  @@unique([tournamentId, name], map: "uq_team_name_per_tournament")
+  @@unique([tournamentId, seed], map: "uq_team_seed_per_tournament")
+  @@index([captainId])
+  @@map("teams")
+}
+
+/// Un membre de roster. `userId` est nul tant que le coéquipier
+/// déclaré par le capitaine n'a pas créé son compte.
+model TeamMember {
+  id     String  @id @default(uuid()) @db.Uuid
+  teamId String  @map("team_id") @db.Uuid
+  userId String? @map("user_id") @db.Uuid
+
+  firstName String  @map("first_name") @db.VarChar(80)
+  lastName  String  @map("last_name") @db.VarChar(80)
+  pseudo    String  @db.VarChar(40)
+  email     String  @db.Citext
+  phone     String? @db.VarChar(30)
+  birthDate DateTime? @map("birth_date") @db.Date
+
+  isCaptain  Boolean @default(false) @map("is_captain")
+  isSubstitute Boolean @default(false) @map("is_substitute")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, email], map: "uq_member_email_per_team")
+  @@index([userId])
+  @@map("team_members")
+}
+
+// ────────────────────── REGISTRATIONS ────────────────────────
+
+model Registration {
+  id           String @id @default(uuid()) @db.Uuid
+  userId       String @map("user_id") @db.Uuid
+  tournamentId String @map("tournament_id") @db.Uuid
+  teamId       String? @map("team_id") @db.Uuid
+
+  type          RegistrationType   @default(SOLO)
+  status        RegistrationStatus @default(PENDING)
+  paymentStatus PaymentStatus      @default(PENDING) @map("payment_status")
+
+  ign      String? @db.VarChar(60) // pseudo in-game (Riot ID, code ami…)
+  notes    String?
+
+  checkedInAt   DateTime? @map("checked_in_at")
+  checkedInById String?   @map("checked_in_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament   Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  checkedInBy  User?      @relation("CheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  payments     Payment[]
+  seatPlacement SeatPlacement?
+
+  // Un joueur ne peut s'inscrire qu'une fois par tournoi.
+  @@unique([userId, tournamentId], map: "uq_registration_user_tournament")
+  @@index([tournamentId, status])
+  @@index([teamId])
+  @@index([paymentStatus])
+  @@map("registrations")
+}
+
+// ────────────────────────── PAYMENTS ─────────────────────────
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String        @map("user_id") @db.Uuid
+  registrationId String?       @map("registration_id") @db.Uuid
+  amountCents    Int           @map("amount_cents")
+  currency       String        @default("EUR") @db.VarChar(3)
+  status         PaymentStatus @default(PENDING)
+  method         String        @default("stripe") @db.VarChar(20) // stripe | cash | card_on_site
+
+  stripeSessionId       String? @unique @map("stripe_session_id")
+  stripePaymentIntentId String? @unique @map("stripe_payment_intent_id")
+
+  collectedById String?   @map("collected_by_id") @db.Uuid // staff qui a encaissé
+  paidAt        DateTime? @map("paid_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([status])
+  @@map("payments")
+}
+
+// ─────────────────── BRACKETS & MATCHS ───────────────────────
+
+model Bracket {
+  id           String        @id @default(uuid()) @db.Uuid
+  tournamentId String        @map("tournament_id") @db.Uuid
+  name         String        @default("Arbre principal") @db.VarChar(90)
+  type         BracketType   @default(SINGLE_ELIMINATION)
+  status       BracketStatus @default(DRAFT)
+  roundsCount  Int           @default(0) @map("rounds_count")
+  thirdPlaceMatch Boolean    @default(false) @map("third_place_match")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    Match[]
+
+  @@index([tournamentId])
+  @@map("brackets")
+}
+
+model Match {
+  id        String @id @default(uuid()) @db.Uuid
+  bracketId String @map("bracket_id") @db.Uuid
+
+  round       Int // 1 = premier tour
+  position    Int // index du match dans le tour (0-based)
+  side        BracketSide @default(WINNERS)
+  groupLabel  String?     @map("group_label") @db.VarChar(20) // "Poule A"…
+  bestOf      Int         @default(1) @map("best_of")
+
+  teamAId String? @map("team_a_id") @db.Uuid
+  teamBId String? @map("team_b_id") @db.Uuid
+  scoreA  Int     @default(0) @map("score_a")
+  scoreB  Int     @default(0) @map("score_b")
+
+  winnerId String?     @map("winner_id") @db.Uuid
+  status   MatchStatus @default(PENDING)
+
+  /// Match qui reçoit le vainqueur, et slot ciblé ("A" ou "B").
+  nextMatchId   String? @map("next_match_id") @db.Uuid
+  nextMatchSlot String? @map("next_match_slot") @db.Char(1)
+  /// Double élimination : match qui reçoit le perdant.
+  loserMatchId   String? @map("loser_match_id") @db.Uuid
+  loserMatchSlot String? @map("loser_match_slot") @db.Char(1)
+
+  scheduledAt DateTime? @map("scheduled_at")
+  stationLabel String?  @map("station_label") @db.VarChar(40)
+  reportedById String?  @map("reported_by_id") @db.Uuid
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  bracket    Bracket @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  teamA      Team?   @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: SetNull)
+  teamB      Team?   @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: SetNull)
+  winner     Team?   @relation("MatchWinner", fields: [winnerId], references: [id], onDelete: SetNull)
+  nextMatch  Match?  @relation("MatchProgression", fields: [nextMatchId], references: [id], onDelete: SetNull)
+  feederOf   Match[] @relation("MatchProgression")
+  loserMatch Match?  @relation("MatchLoserDrop", fields: [loserMatchId], references: [id], onDelete: SetNull)
+  loserFeeds Match[] @relation("MatchLoserDrop")
+
+  @@unique([bracketId, side, round, position], map: "uq_match_slot")
+  @@index([bracketId, round])
+  @@index([status])
+  @@map("matches")
+}
+
+// ─────────────────── PLAN DE SALLE / SIÈGES ──────────────────
+
+/// Une place physique. `x`/`y` sont des pourcentages du plan (0-100)
+/// pour rester responsive quel que soit le zoom.
+model Seat {
+  id           String   @id @default(uuid()) @db.Uuid
+  tournamentId String?  @map("tournament_id") @db.Uuid // null = zone libre / staff
+  zone         String   @db.VarChar(40) // "Zone PC A", "Espace TCG"…
+  tableLabel   String   @map("table_label") @db.VarChar(20) // "T-04"
+  seatLabel    String   @map("seat_label") @db.VarChar(20) // "T-04-C2"
+  kind         SeatKind @default(PC)
+
+  x        Float @default(0) @db.Real
+  y        Float @default(0) @db.Real
+  rotation Float @default(0) @db.Real
+
+  isActive Boolean @default(true) @map("is_active")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tournament Tournament?    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  placement  SeatPlacement?
+
+  @@unique([seatLabel], map: "uq_seat_label")
+  @@index([tournamentId])
+  @@index([zone, tableLabel])
+  @@map("seats")
+}
+
+/// Attribution d'une place à un joueur (et à son équipe).
+/// La contrainte 1-1 sur `seatId` interdit le double booking.
+model SeatPlacement {
+  id             String  @id @default(uuid()) @db.Uuid
+  seatId         String  @unique @map("seat_id") @db.Uuid
+  registrationId String? @unique @map("registration_id") @db.Uuid
+  userId         String? @map("user_id") @db.Uuid
+  teamId         String? @map("team_id") @db.Uuid
+
+  assignedById String?  @map("assigned_by_id") @db.Uuid
+  assignedAt   DateTime @default(now()) @map("assigned_at")
+  note         String?  @db.VarChar(120)
+
+  seat         Seat          @relation(fields: [seatId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team         Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([teamId])
+  @@index([userId])
+  @@map("seat_placements")
+}
+
+// ──────────────── STAFF / ORGANISATEURS / AUDIT ──────────────
+
+model OrganizerAssignment {
+  id           String @id @default(uuid()) @db.Uuid
+  userId       String @map("user_id") @db.Uuid
+  tournamentId String @map("tournament_id") @db.Uuid
+
+  canManageBracket  Boolean @default(true) @map("can_manage_bracket")
+  canCheckIn        Boolean @default(true) @map("can_check_in")
+  canCollectPayment Boolean @default(true) @map("can_collect_payment")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tournamentId], map: "uq_organizer_scope")
+  @@map("organizer_assignments")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(60) // "match.report", "payment.collect"…
+  entityType String   @map("entity_type") @db.VarChar(40)
+  entityId   String?  @map("entity_id")
+  payload    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
