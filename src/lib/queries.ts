@@ -114,7 +114,10 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
       },
     });
 
-    if (!t) return null;
+    // Base joignable mais tournoi absent (non seedée) : on retombe sur la
+    // définition statique, comme le fait la liste. Sans cela la liste
+    // affichait 9 tournois pendant que chaque fiche renvoyait un 404.
+    if (!t) return staticDetail(slug);
 
     return {
       id: t.id,
@@ -159,25 +162,30 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
     console.warn('[queries] Base indisponible, fiche tournoi en statique.', error);
   }
 
-  const fallback = TOURNAMENTS.find((t) => t.slug === slug);
-  if (!fallback) return null;
+  return staticDetail(slug);
+}
+
+/** Fiche construite depuis les données statiques, sans équipes ni arbre. */
+function staticDetail(slug: string): TournamentDetail | null {
+  const t = TOURNAMENTS.find((x) => x.slug === slug);
+  if (!t) return null;
 
   return {
     id: null,
-    slug: fallback.slug,
-    name: fallback.name,
-    tagline: fallback.tagline,
-    platform: fallback.platform,
-    maxPlayers: fallback.maxPlayers,
-    teamSize: fallback.teamSize,
-    formatLabel: fallback.formatLabel,
-    entryFeeCents: fallback.entryFeeCents,
-    accentFrom: fallback.accentFrom,
-    accentTo: fallback.accentTo,
+    slug: t.slug,
+    name: t.name,
+    tagline: t.tagline,
+    platform: t.platform,
+    maxPlayers: t.maxPlayers,
+    teamSize: t.teamSize,
+    formatLabel: t.formatLabel,
+    entryFeeCents: t.entryFeeCents,
+    accentFrom: t.accentFrom,
+    accentTo: t.accentTo,
     registrationOpen: true,
     registered: 0,
-    bannerImage: getGameImage(fallback.slug, 'banner'),
-    characterImage: getGameImage(fallback.slug, 'character'),
+    bannerImage: getGameImage(t.slug, 'banner'),
+    characterImage: getGameImage(t.slug, 'character'),
     teams: [],
     matches: [],
   };
