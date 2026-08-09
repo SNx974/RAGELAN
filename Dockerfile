@@ -31,6 +31,10 @@ RUN npx esbuild prisma/seed.ts \
       --bundle --platform=node --format=cjs --target=node22 \
       --outfile=seed.cjs \
       --external:@prisma/client --external:.prisma --external:bcryptjs
+RUN npx esbuild prisma/status.ts \
+      --bundle --platform=node --format=cjs --target=node22 \
+      --outfile=status.cjs \
+      --external:@prisma/client --external:.prisma
 
 # ── Image finale ──────────────────────────────────────────────
 FROM base AS runner
@@ -49,6 +53,7 @@ RUN npm install --no-save --no-audit --no-fund prisma@5.22.0
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/seed.cjs ./seed.cjs
+COPY --from=builder /app/status.cjs ./status.cjs
 # `standalone` contient server.js + les node_modules réellement utilisés.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

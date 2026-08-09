@@ -83,5 +83,10 @@ else
   echo "[3/4] Seed desactive (SEED=false)."
 fi
 
+# Etat de la base : rend visible un cas autrement muet, celui d'un site
+# qui repond normalement alors qu'aucun compte admin n'existe.
+echo "      Etat de la base :"
+node status.cjs || true
+
 echo "[4/4] Demarrage du serveur..."
 exec "$@"
