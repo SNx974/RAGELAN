@@ -34,6 +34,24 @@ until echo 'SELECT 1;' | "$PRISMA" db execute --url "$DATABASE_URL" --stdin > /d
 done
 echo "      Base prete."
 
+# ── Remise a zero (opt-in explicite) ──────────────────────────
+# Depannage d'un P3009 sans terminal PostgreSQL sous la main.
+# DESTRUCTIF : supprime toutes les tables et toutes les donnees.
+# A retirer des variables Dokploy immediatement apres usage.
+if [ "$DB_RESET" = "true" ]; then
+  echo ""
+  echo "  ############################################################"
+  echo "  #  DB_RESET=true                                           #"
+  echo "  #  Suppression de TOUTES les tables et de TOUTES les       #"
+  echo "  #  donnees (inscriptions comprises).                       #"
+  echo "  #  Retire cette variable des maintenant.                   #"
+  echo "  ############################################################"
+  echo ""
+  printf 'DROP SCHEMA IF EXISTS public CASCADE;\nCREATE SCHEMA public;\n' \
+    | "$PRISMA" db execute --url "$DATABASE_URL" --stdin
+  echo "      Schema remis a zero."
+fi
+
 # ── 2. Migrations ─────────────────────────────────────────────
 echo "[2/4] Migrations de la base de donnees..."
 if ! "$PRISMA" migrate deploy; then
@@ -42,9 +60,13 @@ if ! "$PRISMA" migrate deploy; then
   echo ""
   echo "    Si l'erreur est P3009 (migration precedente en echec), la base"
   echo "    contient un etat partiel. Tant qu'il n'y a pas de donnees a"
-  echo "    conserver, remets-la a zero depuis un terminal PostgreSQL :"
+  echo "    conserver, remets-la a zero :"
   echo ""
-  echo "      DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+  echo "      - soit depuis un terminal PostgreSQL :"
+  echo "          DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+  echo ""
+  echo "      - soit en ajoutant la variable DB_RESET=true dans Dokploy,"
+  echo "        en redeployant, PUIS en retirant la variable."
   echo ""
   echo "    puis relance le deploiement."
   exit 1
