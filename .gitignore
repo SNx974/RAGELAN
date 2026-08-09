@@ -2,9 +2,9 @@ node_modules/
 .next/
 out/
 build/
-.env
-.env*.local
-.env.backup
+# Tout fichier d'environnement, sauf l'exemple sans secret.
+.env*
+!.env.example
 seed.cjs
 *.tsbuildinfo
 next-env.d.ts
