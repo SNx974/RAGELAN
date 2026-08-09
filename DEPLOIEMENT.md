@@ -118,3 +118,33 @@ puis se committent — `migrate deploy` les appliquera au prochain démarrage.
 | `Can't reach database server`         | Hôte externe utilisé au lieu de l'hôte interne    |
 | `AUTH_SECRET manquant ou trop court`  | Moins de 32 caractères                            |
 | Page blanche sur `/tournois/<jeu>`    | Seed non exécuté (`SEED=true` au 1er déploiement) |
+| **`Error: P3009`**                    | Migration précédente interrompue — voir ci-dessous |
+
+### Résoudre un P3009
+
+> `migrate found failed migrations in the target database`
+
+Une migration s'est arrêtée en cours de route (base pas encore prête, coupure
+réseau…). Prisma bloque alors tout déploiement suivant, par sécurité : il ne
+sait pas quelles instructions ont été appliquées.
+
+**Tant que la base ne contient aucune donnée à conserver**, le plus simple est
+de repartir de zéro. Dans Dokploy : la base PostgreSQL → onglet terminal / ou
+n'importe quel client `psql` connecté à `LAN-RAGE` :
+
+```sql
+DROP SCHEMA public CASCADE;
+CREATE SCHEMA public;
+```
+
+Puis relance le déploiement. L'entrypoint attend désormais que PostgreSQL
+réponde avant de migrer, ce qui évite que le problème se reproduise.
+
+**Si la base contient déjà des inscriptions**, ne fais surtout pas le `DROP`.
+Lis d'abord l'erreur d'origine :
+
+```sql
+SELECT migration_name, started_at, finished_at, logs
+FROM _prisma_migrations
+ORDER BY started_at DESC;
+```
