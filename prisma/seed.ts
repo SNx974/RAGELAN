@@ -75,8 +75,8 @@ async function main() {
       id: 1,
       eventName: 'R.A.G.E LAN 2',
       registrationsOpen: true,
-      venueName: 'Halle des Sports — Saint-Denis',
-      venueAddress: '12 rue du Stade, 97400 Saint-Denis',
+      venueName: 'Gymnase Daniel Narcisse',
+      venueAddress: '97419 La Possession, La Réunion',
     },
   });
 

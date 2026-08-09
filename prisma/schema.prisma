@@ -91,6 +91,13 @@ enum SeatKind {
   FREEPLAY
 }
 
+/// Validation manuelle par un admin : rien n'est acquis avant son feu vert.
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // ─────────────────────────── USERS ───────────────────────────
 
 model User {
@@ -122,6 +129,7 @@ model User {
 
   registrations     Registration[]
   captainOf         Team[]              @relation("TeamCaptain")
+  teamsReviewed     Team[]              @relation("TeamReviewer")
   teamMemberships   TeamMember[]
   organizerScopes   OrganizerAssignment[]
   seatPlacements    SeatPlacement[]
@@ -213,18 +221,36 @@ model EventSettings {
 model Team {
   id           String  @id @default(uuid()) @db.Uuid
   tournamentId String  @map("tournament_id") @db.Uuid
+  /// Une seule équipe par compte (voir @@unique plus bas) : le capitaine
+  /// ou manager qui inscrit le roster est le référent unique.
   captainId    String  @map("captain_id") @db.Uuid
   name         String  @db.VarChar(60)
   tag          String? @db.VarChar(8)
-  logoUrl      String? @map("logo_url")
   seed         Int? // tête de série, assignée par l'admin
   checkedIn    Boolean @default(false) @map("checked_in")
+
+  /// Logo stocké en base plutôt que sur disque : le conteneur est
+  /// éphémère, un fichier écrit disparaîtrait au redéploiement.
+  /// Servi par /api/teams/[id]/logo. 5 Mo maximum, PNG.
+  logoData     Bytes?  @map("logo_data")
+  logoMimeType String? @map("logo_mime_type") @db.VarChar(40)
+
+  /// Moyen de contact obligatoire du référent, pour le suivi du paiement.
+  contactEmail String  @map("contact_email") @db.Citext
+  contactPhone String  @map("contact_phone") @db.VarChar(30)
+
+  /// Aucune équipe n'est engagée tant qu'un admin ne l'a pas validée.
+  status          ApprovalStatus @default(PENDING)
+  reviewedById    String?        @map("reviewed_by_id") @db.Uuid
+  reviewedAt      DateTime?      @map("reviewed_at")
+  rejectionReason String?        @map("rejection_reason") @db.VarChar(300)
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   tournament    Tournament      @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   captain       User            @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
+  reviewedBy    User?           @relation("TeamReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   members       TeamMember[]
   registrations Registration[]
   seatPlacements SeatPlacement[]
@@ -234,7 +260,9 @@ model Team {
 
   @@unique([tournamentId, name], map: "uq_team_name_per_tournament")
   @@unique([tournamentId, seed], map: "uq_team_seed_per_tournament")
-  @@index([captainId])
+  /// « 1 seule équipe par compte » : contrainte globale, pas par tournoi.
+  @@unique([captainId], map: "uq_one_team_per_account")
+  @@index([status])
   @@map("teams")
 }
 
@@ -248,9 +276,14 @@ model TeamMember {
   firstName String  @map("first_name") @db.VarChar(80)
   lastName  String  @map("last_name") @db.VarChar(80)
   pseudo    String  @db.VarChar(40)
-  email     String  @db.Citext
+  email     String? @db.Citext
   phone     String? @db.VarChar(30)
-  birthDate DateTime? @map("birth_date") @db.Date
+  /// Obligatoire : 16 ans révolus minimum le jour de l'événement.
+  birthDate DateTime @map("birth_date") @db.Date
+
+  /// Autorisation parentale, exigée pour les 16-17 ans.
+  guardianName  String? @map("guardian_name") @db.VarChar(160)
+  guardianPhone String? @map("guardian_phone") @db.VarChar(30)
 
   isCaptain  Boolean @default(false) @map("is_captain")
   isSubstitute Boolean @default(false) @map("is_substitute")
@@ -260,7 +293,7 @@ model TeamMember {
   team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  @@unique([teamId, email], map: "uq_member_email_per_team")
+  @@unique([teamId, pseudo], map: "uq_member_pseudo_per_team")
   @@index([userId])
   @@map("team_members")
 }

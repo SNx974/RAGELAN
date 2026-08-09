@@ -31,6 +31,9 @@ CREATE TYPE "BracketSide" AS ENUM ('WINNERS', 'LOSERS', 'GRAND_FINAL', 'GROUP');
 -- CreateEnum
 CREATE TYPE "SeatKind" AS ENUM ('PC', 'CONSOLE', 'TABLE_TCG', 'STAFF', 'FREEPLAY');
 
+-- CreateEnum
+CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
@@ -119,9 +122,16 @@ CREATE TABLE "teams" (
     "captain_id" UUID NOT NULL,
     "name" VARCHAR(60) NOT NULL,
     "tag" VARCHAR(8),
-    "logo_url" TEXT,
     "seed" INTEGER,
     "checked_in" BOOLEAN NOT NULL DEFAULT false,
+    "logo_data" BYTEA,
+    "logo_mime_type" VARCHAR(40),
+    "contact_email" CITEXT NOT NULL,
+    "contact_phone" VARCHAR(30) NOT NULL,
+    "status" "ApprovalStatus" NOT NULL DEFAULT 'PENDING',
+    "reviewed_by_id" UUID,
+    "reviewed_at" TIMESTAMP(3),
+    "rejection_reason" VARCHAR(300),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -136,9 +146,11 @@ CREATE TABLE "team_members" (
     "first_name" VARCHAR(80) NOT NULL,
     "last_name" VARCHAR(80) NOT NULL,
     "pseudo" VARCHAR(40) NOT NULL,
-    "email" CITEXT NOT NULL,
+    "email" CITEXT,
     "phone" VARCHAR(30),
-    "birth_date" DATE,
+    "birth_date" DATE NOT NULL,
+    "guardian_name" VARCHAR(160),
+    "guardian_phone" VARCHAR(30),
     "is_captain" BOOLEAN NOT NULL DEFAULT false,
     "is_substitute" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -312,7 +324,7 @@ CREATE UNIQUE INDEX "tournaments_slug_key" ON "tournaments"("slug");
 CREATE INDEX "tournaments_sort_order_idx" ON "tournaments"("sort_order");
 
 -- CreateIndex
-CREATE INDEX "teams_captain_id_idx" ON "teams"("captain_id");
+CREATE INDEX "teams_status_idx" ON "teams"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "uq_team_name_per_tournament" ON "teams"("tournament_id", "name");
@@ -321,10 +333,13 @@ CREATE UNIQUE INDEX "uq_team_name_per_tournament" ON "teams"("tournament_id", "n
 CREATE UNIQUE INDEX "uq_team_seed_per_tournament" ON "teams"("tournament_id", "seed");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "uq_one_team_per_account" ON "teams"("captain_id");
+
+-- CreateIndex
 CREATE INDEX "team_members_user_id_idx" ON "team_members"("user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "uq_member_email_per_team" ON "team_members"("team_id", "email");
+CREATE UNIQUE INDEX "uq_member_pseudo_per_team" ON "team_members"("team_id", "pseudo");
 
 -- CreateIndex
 CREATE INDEX "registrations_tournament_id_status_idx" ON "registrations"("tournament_id", "status");
@@ -400,6 +415,9 @@ ALTER TABLE "teams" ADD CONSTRAINT "teams_tournament_id_fkey" FOREIGN KEY ("tour
 
 -- AddForeignKey
 ALTER TABLE "teams" ADD CONSTRAINT "teams_captain_id_fkey" FOREIGN KEY ("captain_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "teams" ADD CONSTRAINT "teams_reviewed_by_id_fkey" FOREIGN KEY ("reviewed_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;

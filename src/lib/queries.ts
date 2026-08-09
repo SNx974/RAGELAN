@@ -78,8 +78,18 @@ export type TournamentDetail = {
   registered: number;
   bannerImage: string | null;
   characterImage: string | null;
-  teams: { id: string; name: string; tag: string | null; seed: number | null; memberCount: number }[];
+  teams: PresentedTeam[];
   matches: BracketMatch[];
+};
+
+/** Équipe telle qu'affichée publiquement sur la fiche du tournoi. */
+export type PresentedTeam = {
+  id: string;
+  name: string;
+  tag: string | null;
+  seed: number | null;
+  hasLogo: boolean;
+  players: { pseudo: string; firstName: string; lastName: string; isCaptain: boolean; isSubstitute: boolean }[];
 };
 
 /**
@@ -97,8 +107,21 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
           },
         },
         teams: {
+          // Seules les équipes validées par un admin sont publiées.
+          where: { status: 'APPROVED' },
           orderBy: [{ seed: 'asc' }, { name: 'asc' }],
-          include: { _count: { select: { members: true } } },
+          include: {
+            members: {
+              orderBy: [{ isCaptain: 'desc' }, { isSubstitute: 'asc' }, { pseudo: 'asc' }],
+              select: {
+                pseudo: true,
+                firstName: true,
+                lastName: true,
+                isCaptain: true,
+                isSubstitute: true,
+              },
+            },
+          },
         },
         brackets: {
           include: {
@@ -140,7 +163,8 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
         name: team.name,
         tag: team.tag,
         seed: team.seed,
-        memberCount: team._count.members,
+        hasLogo: team.logoData !== null,
+        players: team.members,
       })),
       matches: (t.brackets[0]?.matches ?? []).map((m) => ({
         id: m.id,

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/motion/reveal';
 import { GlitchTitle } from '@/components/motion/glitch-title';
 import { BracketTree } from '@/components/brackets/bracket-tree';
+import { TeamRoster } from '@/components/tournaments/team-roster';
 import { cn, formatPrice } from '@/lib/utils';
 
 export const revalidate = 30;
@@ -154,31 +155,30 @@ export default async function TournamentPage({ params }: { params: { slug: strin
         </div>
       </Reveal>
 
-      {/* Équipes */}
-      {tournament.teams.length > 0 && (
-        <Reveal className="mt-12">
-          <h2 className="mb-5 font-display text-2xl font-bold text-white">
-            Équipes engagées ({tournament.teams.length})
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {tournament.teams.map((team) => (
-              <div key={team.id} className="glass-card spotlight p-4">
-                <div className="flex items-center justify-between">
-                  <p className="truncate font-semibold text-white">
-                    {team.tag && <span className="text-white/40">[{team.tag}] </span>}
-                    {team.name}
-                  </p>
-                  {team.seed && (
-                    <span className="font-display text-sm font-bold text-rage-orange">
-                      #{team.seed}
-                    </span>
-                  )}
-                </div>
-                <p className="mt-1 text-xs text-white/40">{team.memberCount} joueurs</p>
-              </div>
-            ))}
-          </div>
-        </Reveal>
+      {/* Équipes engagées */}
+      {tournament.teamSize > 1 && (
+        <div className="mt-14">
+          <Reveal className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rage-orange">
+              Ils sont inscrits
+            </p>
+            <h2 className="mt-2 font-display text-2xl font-bold text-white sm:text-3xl">
+              {tournament.teams.length > 0
+                ? `Équipes engagées (${tournament.teams.length})`
+                : 'Aucune équipe engagée pour le moment'}
+            </h2>
+            {tournament.teams.length === 0 && (
+              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+                Les équipes apparaissent ici une fois leur inscription validée par
+                l&apos;organisation. Sois la première à te lancer.
+              </p>
+            )}
+          </Reveal>
+
+          {tournament.teams.length > 0 && (
+            <TeamRoster teams={tournament.teams} accent={tournament.accentFrom} />
+          )}
+        </div>
       )}
 
       {/* Arbre public (lecture seule) */}

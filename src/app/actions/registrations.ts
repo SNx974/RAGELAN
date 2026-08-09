@@ -10,7 +10,10 @@ import { captainRegistrationSchema, soloRegistrationSchema } from '@/lib/validat
  * Tout se fait dans une transaction : équipe + membres + inscription
  * du capitaine, avec contrôle de capacité et de taille de roster.
  */
-export async function registerAsCaptain(input: unknown) {
+export async function registerAsCaptain(
+  input: unknown,
+  logo?: { data: Buffer; mimeType: string },
+) {
   const session = await getSession();
   if (!session) return { error: 'Connexion requise.' };
 
@@ -19,6 +22,18 @@ export async function registerAsCaptain(input: unknown) {
     return { error: 'Formulaire invalide.', fieldErrors: parsed.error.flatten().fieldErrors };
   }
   const data = parsed.data;
+
+  // « 1 seule équipe par compte » : contrôle applicatif en plus de la
+  // contrainte SQL, pour renvoyer un message clair plutôt qu'une erreur.
+  const existingTeam = await prisma.team.findUnique({
+    where: { captainId: session.sub },
+    include: { tournament: { select: { name: true } } },
+  });
+  if (existingTeam) {
+    return {
+      error: `Ton compte a déjà inscrit l’équipe « ${existingTeam.name} » sur ${existingTeam.tournament.name}. Une seule équipe par compte.`,
+    };
+  }
 
   const tournament = await prisma.tournament.findUnique({
     where: { slug: data.tournamentSlug },
@@ -59,6 +74,12 @@ export async function registerAsCaptain(input: unknown) {
           captainId: captain.id,
           name: data.teamName,
           tag: data.teamTag || null,
+          contactEmail: data.contactEmail,
+          contactPhone: data.contactPhone,
+          logoData: logo?.data ?? null,
+          logoMimeType: logo?.mimeType ?? null,
+          // Rien n'est acquis : un admin doit valider l'équipe.
+          status: 'PENDING',
           members: {
             create: [
               {
@@ -69,14 +90,19 @@ export async function registerAsCaptain(input: unknown) {
                 email: captain.email,
                 phone: captain.phone,
                 birthDate: captain.birthDate,
+                guardianName: captain.guardianName,
+                guardianPhone: captain.guardianPhone,
                 isCaptain: true,
               },
               ...data.members.map((m) => ({
                 firstName: m.firstName,
                 lastName: m.lastName,
                 pseudo: m.pseudo,
-                email: m.email,
+                birthDate: m.birthDate,
+                email: m.email || null,
                 phone: m.phone || null,
+                guardianName: m.guardianName || null,
+                guardianPhone: m.guardianPhone || null,
                 isSubstitute: m.isSubstitute,
               })),
             ],

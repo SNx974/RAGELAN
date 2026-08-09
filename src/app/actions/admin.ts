@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { requireRole, requireTournamentAccess } from '@/lib/auth';
 import { generateBracket, reportMatchResult } from '@/lib/bracket';
 import { assignSeatSchema, promoteUserSchema, reportScoreSchema } from '@/lib/validations';
+import { sendSoloDecisionEmail, sendTeamDecisionEmail } from '@/lib/email';
 
 /** Ouvre/ferme les inscriptions d'un jeu. */
 export async function toggleTournamentRegistration(tournamentId: string, open: boolean) {
@@ -82,6 +83,102 @@ export async function removeOrganizer(userId: string, tournamentId: string) {
   await requireRole('ADMIN');
   await prisma.organizerAssignment.deleteMany({ where: { userId, tournamentId } });
   revalidatePath('/admin/staff');
+  return { success: true };
+}
+
+/**
+ * Validation d'une équipe par un admin. Rien n'est engagé avant :
+ * l'équipe n'apparaît pas publiquement et ne peut pas être seedée.
+ * L'approbation confirme aussi l'inscription du référent.
+ */
+export async function reviewTeam(
+  teamId: string,
+  decision: 'APPROVED' | 'REJECTED',
+  reason?: string,
+) {
+  const session = await requireRole('ADMIN');
+
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    include: { tournament: { select: { name: true, slug: true } } },
+  });
+  if (!team) return { error: 'Équipe introuvable.' };
+
+  if (decision === 'REJECTED' && !reason?.trim()) {
+    return { error: 'Motif de refus obligatoire : il est transmis au référent.' };
+  }
+
+  await prisma.$transaction([
+    prisma.team.update({
+      where: { id: teamId },
+      data: {
+        status: decision,
+        reviewedById: session.sub,
+        reviewedAt: new Date(),
+        rejectionReason: decision === 'REJECTED' ? reason!.trim() : null,
+      },
+    }),
+    prisma.registration.updateMany({
+      where: { teamId },
+      data: { status: decision === 'APPROVED' ? 'CONFIRMED' : 'CANCELLED' },
+    }),
+    prisma.auditLog.create({
+      data: {
+        actorId: session.sub,
+        action: decision === 'APPROVED' ? 'team.approve' : 'team.reject',
+        entityType: 'team',
+        entityId: teamId,
+        payload: { name: team.name, tournament: team.tournament.slug, reason: reason ?? null },
+      },
+    }),
+  ]);
+
+  await sendTeamDecisionEmail({
+    to: team.contactEmail,
+    teamName: team.name,
+    tournamentName: team.tournament.name,
+    decision,
+    reason,
+  });
+
+  revalidatePath('/admin/equipes');
+  revalidatePath(`/tournois/${team.tournament.slug}`);
+  return { success: true };
+}
+
+/** Accepte ou refuse un joueur solo. */
+export async function reviewRegistration(
+  registrationId: string,
+  decision: 'CONFIRMED' | 'CANCELLED',
+) {
+  const session = await requireRole('ADMIN');
+
+  const registration = await prisma.registration.update({
+    where: { id: registrationId },
+    data: { status: decision },
+    include: {
+      user: { select: { email: true, firstName: true } },
+      tournament: { select: { name: true, slug: true } },
+    },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: session.sub,
+      action: decision === 'CONFIRMED' ? 'registration.approve' : 'registration.reject',
+      entityType: 'registration',
+      entityId: registrationId,
+    },
+  });
+
+  await sendSoloDecisionEmail({
+    to: registration.user.email,
+    firstName: registration.user.firstName,
+    tournamentName: registration.tournament.name,
+    decision,
+  });
+
+  revalidatePath('/admin/inscriptions');
   return { success: true };
 }
 

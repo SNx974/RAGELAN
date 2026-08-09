@@ -14,6 +14,7 @@ import { getSession, hasRole } from '@/lib/auth';
 const LINKS = [
   { href: '/admin', label: 'Vue d’ensemble', icon: LayoutDashboard },
   { href: '/admin/tournois', label: 'Tournois & arbres', icon: Trophy },
+  { href: '/admin/equipes', label: 'Équipes à valider', icon: ShieldCheck },
   { href: '/admin/inscriptions', label: 'Inscriptions', icon: FileText },
   { href: '/admin/placement', label: 'Plan de salle', icon: MapPinned },
   { href: '/admin/staff', label: 'Staff & accès', icon: ShieldCheck },

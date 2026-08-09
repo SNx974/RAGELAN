@@ -10,13 +10,13 @@ export function SiteFooter({ logoSrc }: { logoSrc: string | null }) {
         <div className="md:col-span-2">
           <Logo src={logoSrc} height={56} />
           <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            9 tournois, 272 places, un week-end entier de compétition. PC, consoles et cartes
-            sur table — la LAN qui frappe fort.
+            9 tournois, 272 places, deux jours de compétition. PC, consoles et cartes sur
+            table — la LAN qui frappe fort.
           </p>
           <div className="mt-5 space-y-2 text-sm text-muted-foreground">
             <p className="flex items-center gap-2">
               <MapPin className="size-4 text-rage-orange" />
-              Halle des Sports — Saint-Denis
+              Gymnase Daniel Narcisse — 97419 La Possession
             </p>
             <p className="flex items-center gap-2">
               <Mail className="size-4 text-rage-orange" />
@@ -68,10 +68,10 @@ export function SiteFooter({ logoSrc }: { logoSrc: string | null }) {
 
       <div className="border-t border-white/[0.05]">
         <div className="container flex flex-col items-center justify-between gap-3 py-6 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} R.A.G.E LAN — Tous droits réservés.</p>
+          <p>2026 — Rushxp — R.A.G.E LAN — Tous droits réservés.</p>
           <p className="flex items-center gap-1.5">
             <Gamepad2 className="size-3.5 text-rage-red" />
-            GG WP
+            SNx DEV
           </p>
         </div>
       </div>

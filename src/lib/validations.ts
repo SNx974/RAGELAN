@@ -57,24 +57,66 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
-const rosterMemberSchema = z.object({
-  firstName: z.string().min(2).max(80),
-  lastName: z.string().min(2).max(80),
-  pseudo: z.string().min(2).max(40),
-  email: z.string().email(),
-  phone: z.string().regex(PHONE).optional().or(z.literal('')),
-  isSubstitute: z.boolean().default(false),
-});
+/** Âge minimum le jour de l'événement. */
+export const MIN_AGE = 16;
+export const EVENT_DATE = new Date(process.env.NEXT_PUBLIC_EVENT_DATE ?? '2026-10-23');
 
-/** Inscription capitaine : roster complet saisi en une fois. */
+/** Âge révolu à la date de l'événement (et non aujourd'hui). */
+export function ageAtEvent(birthDate: Date) {
+  let age = EVENT_DATE.getFullYear() - birthDate.getFullYear();
+  const m = EVENT_DATE.getMonth() - birthDate.getMonth();
+  if (m < 0 || (m === 0 && EVENT_DATE.getDate() < birthDate.getDate())) age--;
+  return age;
+}
+
+const rosterMemberSchema = z
+  .object({
+    firstName: z.string().min(2, 'Prénom requis').max(80),
+    lastName: z.string().min(2, 'Nom requis').max(80),
+    pseudo: z.string().min(2, 'Pseudo requis').max(40),
+    birthDate: z.coerce.date({ required_error: 'Date de naissance requise' }),
+    email: z.string().email().optional().or(z.literal('')),
+    phone: z.string().regex(PHONE).optional().or(z.literal('')),
+    guardianName: z.string().max(160).optional().or(z.literal('')),
+    guardianPhone: z.string().max(30).optional().or(z.literal('')),
+    isSubstitute: z.boolean().default(false),
+  })
+  .refine((m) => ageAtEvent(m.birthDate) >= MIN_AGE, {
+    message: `${MIN_AGE} ans minimum le jour de l’événement`,
+    path: ['birthDate'],
+  })
+  // 16-17 ans : autorisation parentale obligatoire.
+  .refine((m) => ageAtEvent(m.birthDate) >= 18 || Boolean(m.guardianName && m.guardianPhone), {
+    message: 'Joueur mineur : responsable légal obligatoire',
+    path: ['guardianName'],
+  });
+
+/** Inscription capitaine/manager : roster complet saisi en une fois. */
 export const captainRegistrationSchema = z.object({
   tournamentSlug: z.string().min(1),
   teamName: z.string().min(2, 'Nom d’équipe trop court').max(60),
   teamTag: z.string().max(8).optional().or(z.literal('')),
   ign: z.string().max(60).optional().or(z.literal('')),
+  // Moyen de contact du référent : obligatoire pour le suivi du paiement.
+  contactEmail: z.string().email('Email de contact invalide'),
+  contactPhone: z.string().regex(PHONE, 'Téléphone de contact invalide'),
   paymentChoice: z.enum(['ONLINE', 'ON_SITE']),
   members: z.array(rosterMemberSchema).min(1, 'Ajoute au moins un coéquipier').max(9),
 });
+
+/** Logo d'équipe : PNG, 5 Mo maximum. */
+export const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+export const ALLOWED_LOGO_TYPES = ['image/png'] as const;
+
+export function validateLogo(file: { type: string; size: number }) {
+  if (!ALLOWED_LOGO_TYPES.includes(file.type as (typeof ALLOWED_LOGO_TYPES)[number])) {
+    return 'Le logo doit être au format PNG.';
+  }
+  if (file.size > MAX_LOGO_BYTES) {
+    return `Le logo dépasse 5 Mo (${(file.size / 1024 / 1024).toFixed(1)} Mo).`;
+  }
+  return null;
+}
 
 export type CaptainRegistrationInput = z.infer<typeof captainRegistrationSchema>;
 
