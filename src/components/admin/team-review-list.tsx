@@ -152,7 +152,7 @@ export function TeamReviewList({
                   )}
                 </div>
 
-                <div className="min-w-[200px] flex-1">
+                <div className="min-w-0 flex-1 sm:min-w-[200px]">
                   <div className="flex flex-wrap items-center gap-2">
                     <h2 className="font-display text-lg font-bold text-white">
                       {team.tag && <span className="text-white/35">[{team.tag}] </span>}
@@ -199,11 +199,13 @@ export function TeamReviewList({
                 </div>
 
                 {team.status === 'PENDING' && (
-                  <div className="flex gap-2">
+                  // Pleine largeur sur mobile : deux boutons côte à côte
+                  // restent atteignables au pouce.
+                  <div className="flex w-full gap-2 sm:w-auto">
                     <button
                       onClick={() => setRejecting(team)}
                       disabled={busy === team.id}
-                      className="flex h-10 items-center gap-1.5 rounded-lg border border-rage-red/40 px-3 text-xs font-semibold text-rage-red transition-colors hover:bg-rage-red/10"
+                      className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-rage-red/40 px-3 text-xs font-semibold text-rage-red transition-colors hover:bg-rage-red/10 sm:h-10 sm:flex-none"
                     >
                       <X className="size-4" />
                       Refuser
@@ -211,7 +213,7 @@ export function TeamReviewList({
                     <button
                       onClick={() => decide(team, 'APPROVED')}
                       disabled={busy === team.id}
-                      className="flex h-10 items-center gap-1.5 rounded-lg bg-rage-gradient px-4 text-xs font-bold text-black shadow-neon transition-all hover:brightness-110"
+                      className="flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rage-gradient px-4 text-xs font-bold text-black shadow-neon transition-all hover:brightness-110 sm:h-10 sm:flex-none"
                     >
                       <Check className="size-4" />
                       Valider

@@ -111,7 +111,7 @@ export function FloorPlan({
     <div className="grid gap-6 lg:grid-cols-[300px_1fr]">
       {/* ── Panneau joueurs non placés ─────────────────────── */}
       {!readOnly && (
-        <aside className="glass-card flex max-h-[78vh] flex-col p-4">
+        <aside className="glass-card flex max-h-[60vh] flex-col p-4 lg:max-h-[78vh]">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="font-display text-sm font-bold uppercase tracking-wider text-white">
               À placer
@@ -185,16 +185,26 @@ export function FloorPlan({
           </div>
 
           <p className="mt-3 border-t border-white/[0.07] pt-3 text-[11px] leading-relaxed text-white/35">
-            Glisse un joueur sur un siège, ou clique un siège pour choisir dans la liste.
+            {/*
+              Le glisser-déposer s'appuie sur l'API HTML5, qui ne réagit pas
+              au tactile : sur mobile, seule la sélection par siège fonctionne.
+            */}
+            <span className="hidden lg:inline">
+              Glisse un joueur sur un siège, ou clique un siège pour choisir dans la liste.
+            </span>
+            <span className="lg:hidden">
+              Touche un siège pour y placer un joueur. Le glisser-déposer n&apos;est
+              disponible qu&apos;au clavier-souris.
+            </span>
           </p>
         </aside>
       )}
 
       {/* ── Le plan ────────────────────────────────────────── */}
       <div className="glass-card overflow-hidden">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-5 py-3.5">
-          <div>
-            <h2 className="font-display text-lg font-bold text-white">{tournamentName}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.07] px-4 py-3.5 sm:px-5">
+          <div className="min-w-0">
+            <h2 className="truncate font-display text-lg font-bold text-white">{tournamentName}</h2>
             <p className="text-xs text-white/40">
               {tables.length} tables · {seats.length} sièges
             </p>
@@ -209,9 +219,16 @@ export function FloorPlan({
           </div>
         </div>
 
+        {/*
+          Les sièges sont positionnés en pourcentage. Sous ~700 px de large,
+          ils se chevaucheraient (leur taille minimale dépasse l'espacement
+          calculé) : on impose donc une largeur plancher et on laisse
+          défiler horizontalement plutôt que d'écraser le plan.
+        */}
+        <div className="overflow-x-auto">
         <div
           ref={planRef}
-          className="relative aspect-[16/11] w-full overflow-hidden bg-black/50"
+          className="relative aspect-[16/11] w-full min-w-[700px] overflow-hidden bg-black/50 lg:min-w-0"
           style={{
             backgroundImage:
               'linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px)',
@@ -308,6 +325,7 @@ export function FloorPlan({
               <span className="size-2.5 rounded-sm" style={{ background: accent }} /> Occupé
             </span>
           </div>
+        </div>
         </div>
       </div>
 

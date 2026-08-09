@@ -102,7 +102,7 @@ export function UserRoleTable({
               busy === u.id && 'opacity-60',
             )}
           >
-            <div className="min-w-[180px] flex-1">
+            <div className="min-w-0 flex-1 sm:min-w-[180px]">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold text-white">{u.fullName}</span>
                 {u.pseudo && <span className="text-xs text-white/35">{u.pseudo}</span>}
@@ -126,7 +126,7 @@ export function UserRoleTable({
               // au dernier super admin de se verrouiller dehors.
               disabled={!canPromote || u.isSelf || busy === u.id}
               onChange={(e) => changeRole(u, e.target.value as ManagedUser['role'])}
-              className="h-10 rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white focus:border-rage-orange/60 focus:outline-none disabled:opacity-40"
+              className="h-11 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-sm text-white focus:border-rage-orange/60 focus:outline-none disabled:opacity-40 sm:h-10 sm:w-auto"
             >
               {ROLES.map((r) => (
                 <option key={r} value={r}>

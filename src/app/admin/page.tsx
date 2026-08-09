@@ -87,10 +87,10 @@ export default async function AdminOverviewPage() {
               return (
                 <div
                   key={t.id}
-                  className="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.02]"
+                  className="flex flex-wrap items-center gap-4 px-4 py-4 transition-colors hover:bg-white/[0.02] sm:px-5"
                 >
-                  <div className="min-w-[160px] flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 sm:min-w-[160px]">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span
                         className="size-2.5 rounded-full"
                         style={{ background: t.accentFrom }}
@@ -102,7 +102,7 @@ export default async function AdminOverviewPage() {
                     </div>
                     <p className="mt-0.5 text-xs text-white/40">{t.formatLabel}</p>
                     {/* Capacités matérielles : réservées à l'organisation. */}
-                    <p className="mt-1 flex items-center gap-3 text-[11px] text-white/30">
+                    <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-white/30">
                       <span className="flex items-center gap-1">
                         <Table2 className="size-3" />
                         {t.tableCount} tables
@@ -115,7 +115,7 @@ export default async function AdminOverviewPage() {
                     </p>
                   </div>
 
-                  <div className="w-40">
+                  <div className="w-full sm:w-40">
                     <div className="mb-1 flex justify-between text-[11px] text-white/45">
                       <span>
                         {t._count.registrations}/{t.maxPlayers}
@@ -133,7 +133,7 @@ export default async function AdminOverviewPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex w-full flex-wrap gap-2 sm:w-auto">
                     <Button asChild size="sm" variant="outline">
                       <Link href={`/admin/tournois/${t.id}/bracket`}>
                         <GitBranch />

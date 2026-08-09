@@ -51,10 +51,10 @@ export function TournamentEditor({ tournaments }: { tournaments: EditableTournam
           <div key={t.id} className="glass-card overflow-hidden">
             <button
               onClick={() => setOpenId(openId === t.id ? null : t.id)}
-              className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-white/[0.02]"
+              className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-white/[0.02] sm:gap-4 sm:px-5"
             >
               <span className="size-2.5 shrink-0 rounded-full" style={{ background: t.accentFrom }} />
-              <div className="min-w-[140px] flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-semibold text-white">{t.name}</span>
                   <Badge variant={t.registrationOpen ? 'success' : 'neutral'}>
@@ -176,7 +176,7 @@ function TournamentForm({
       </div>
 
       <Section title="Tarif et effectifs">
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Field label="Prix (€)">
             <Input
               type="number"
@@ -214,7 +214,7 @@ function TournamentForm({
       </Section>
 
       <Section title="Plan de salle">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <Field label="Tables" hint={`${t.seatCount} sièges actuels`}>
             <Input
               type="number"
@@ -270,7 +270,7 @@ function TournamentForm({
         Inscriptions ouvertes sur ce tournoi
       </label>
 
-      <div className="flex justify-end gap-3 border-t border-white/[0.06] pt-4">
+      <div className="flex flex-col-reverse gap-3 border-t border-white/[0.06] pt-4 sm:flex-row sm:justify-end">
         <button
           onClick={onDone}
           className="h-11 rounded-xl border border-white/12 px-5 text-sm font-semibold text-white/70 hover:bg-white/5"
@@ -280,7 +280,7 @@ function TournamentForm({
         <button
           onClick={submit}
           disabled={pending || notEnoughChairs}
-          className="flex h-11 items-center gap-2 rounded-xl bg-rage-gradient px-6 text-sm font-bold text-black shadow-neon transition-all hover:brightness-110 disabled:opacity-40"
+          className="flex h-11 items-center justify-center gap-2 rounded-xl bg-rage-gradient px-6 text-sm font-bold text-black shadow-neon transition-all hover:brightness-110 disabled:opacity-40"
         >
           <Save className="size-4" />
           {pending ? 'Enregistrement…' : 'Enregistrer'}

@@ -166,7 +166,7 @@ export function CheckInConsole({ rows }: { rows: CheckInRow[] }) {
                   {rowInitials(row.fullName)}
                 </span>
 
-                <div className="min-w-[180px] flex-1">
+                <div className="min-w-0 flex-1 sm:min-w-[180px]">
                   <p className="font-semibold text-white">
                     {row.fullName}
                     {row.pseudo && <span className="text-white/40"> · {row.pseudo}</span>}
@@ -193,13 +193,14 @@ export function CheckInConsole({ rows }: { rows: CheckInRow[] }) {
                   {paid ? 'Réglé' : `Doit ${formatPrice(row.entryFeeCents)}`}
                 </Badge>
 
-                <div className="flex gap-2">
+                {/* Jour J : cet écran se manipule au pouce, boutons pleine largeur. */}
+                <div className="flex w-full gap-2 sm:w-auto">
                   {!paid && (
                     <>
                       <button
                         onClick={() => doCollect(row.id, 'cash')}
                         disabled={busy}
-                        className="flex h-10 items-center gap-1.5 rounded-lg border border-rage-yellow/35 px-3 text-xs font-semibold text-rage-yellow transition-colors hover:bg-rage-yellow/10"
+                        className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg border border-rage-yellow/35 px-3 text-xs font-semibold text-rage-yellow transition-colors hover:bg-rage-yellow/10 sm:h-10 sm:flex-none"
                       >
                         <Banknote className="size-4" />
                         Espèces
@@ -207,7 +208,7 @@ export function CheckInConsole({ rows }: { rows: CheckInRow[] }) {
                       <button
                         onClick={() => doCollect(row.id, 'card_on_site')}
                         disabled={busy}
-                        className="flex h-10 items-center gap-1.5 rounded-lg border border-rage-yellow/35 px-3 text-xs font-semibold text-rage-yellow transition-colors hover:bg-rage-yellow/10"
+                        className="flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg border border-rage-yellow/35 px-3 text-xs font-semibold text-rage-yellow transition-colors hover:bg-rage-yellow/10 sm:h-10 sm:flex-none"
                       >
                         <CreditCard className="size-4" />
                         CB
@@ -219,7 +220,7 @@ export function CheckInConsole({ rows }: { rows: CheckInRow[] }) {
                     onClick={() => doCheckIn(row.id)}
                     disabled={busy || present}
                     className={cn(
-                      'flex h-10 items-center gap-1.5 rounded-lg px-4 text-xs font-bold transition-all',
+                      'flex h-12 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-xs font-bold transition-all sm:h-10 sm:flex-none',
                       present
                         ? 'bg-emerald-500/15 text-emerald-400'
                         : 'bg-rage-gradient text-black shadow-neon hover:brightness-110',

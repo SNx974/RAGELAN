@@ -86,16 +86,16 @@ export function ManualTeamForm({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => setOpen(false)}
-            className="fixed inset-0 z-50 grid place-items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm sm:p-8"
+            className="fixed inset-0 z-50 grid place-items-start justify-center overflow-y-auto overscroll-contain bg-black/80 p-3 backdrop-blur-sm sm:p-8"
           >
             <motion.div
               initial={{ scale: 0.95, y: 20, opacity: 0 }}
               animate={{ scale: 1, y: 0, opacity: 1 }}
               exit={{ scale: 0.95, y: 20, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="glass-card w-full max-w-2xl p-6"
+              className="glass-card w-full max-w-2xl p-4 sm:p-6"
             >
-              <div className="flex items-start justify-between">
+              <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="font-display text-xl font-bold text-white">
                     Inscrire une équipe
@@ -128,7 +128,7 @@ export function ManualTeamForm({
                       ))}
                     </select>
                   </div>
-                  <div className="grid grid-cols-[1fr_90px] gap-3">
+                  <div className="grid grid-cols-[1fr_80px] gap-3">
                     <div>
                       <Label className="mb-1.5 block">Nom d&apos;équipe</Label>
                       <Input
@@ -194,10 +194,29 @@ export function ManualTeamForm({
 
                   <div className="space-y-2">
                     {members.map((m, i) => (
+                      /*
+                        Mobile : une carte par joueur, champs sur deux colonnes.
+                        lg+ : une ligne unique. Les 5 colonnes fixes d'origine
+                        laissaient ~40 px par champ sur un téléphone.
+                      */
                       <div
                         key={i}
-                        className="grid grid-cols-[1fr_1fr_1fr_130px_auto] items-center gap-2"
+                        className="grid grid-cols-2 gap-2 rounded-lg border border-white/[0.06] p-2.5 lg:grid-cols-[1fr_1fr_1fr_140px_auto] lg:items-center lg:border-0 lg:p-0"
                       >
+                        <div className="col-span-2 flex items-center justify-between lg:hidden">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-white/35">
+                            {i === 0 ? 'Capitaine' : `Joueur ${i + 1}`}
+                          </span>
+                          <button
+                            onClick={() => setMembers(members.filter((_, j) => j !== i))}
+                            disabled={members.length === 1}
+                            className="rounded-lg p-1.5 text-white/30 hover:text-rage-red disabled:opacity-25"
+                            aria-label="Retirer ce joueur"
+                          >
+                            <Trash2 className="size-4" />
+                          </button>
+                        </div>
+
                         <Input
                           placeholder="Prénom"
                           value={m.firstName}
@@ -237,7 +256,8 @@ export function ManualTeamForm({
                         <button
                           onClick={() => setMembers(members.filter((_, j) => j !== i))}
                           disabled={members.length === 1}
-                          className="rounded-lg p-2 text-white/30 hover:text-rage-red disabled:opacity-25"
+                          className="hidden rounded-lg p-2 text-white/30 hover:text-rage-red disabled:opacity-25 lg:block"
+                          aria-label="Retirer ce joueur"
                         >
                           <Trash2 className="size-4" />
                         </button>
