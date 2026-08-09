@@ -1,9 +1,17 @@
 import { prisma } from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 import { TeamReviewList, type ReviewableTeam } from '@/components/admin/team-review-list';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminTeamsPage() {
+  const session = await getSession();
+
+  const tournaments = await prisma.tournament.findMany({
+    orderBy: { sortOrder: 'asc' },
+    select: { id: true, name: true, teamSize: true },
+  });
+
   const teams = await prisma.team.findMany({
     orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
     include: {
@@ -48,5 +56,13 @@ export default async function AdminTeamsPage() {
     })),
   }));
 
-  return <TeamReviewList teams={rows} />;
+  return (
+    <TeamReviewList
+      teams={rows}
+      tournaments={tournaments}
+      // La saisie manuelle est un contournement des règles d'inscription :
+      // réservée au super admin.
+      canCreateManually={session?.role === 'SUPER_ADMIN'}
+    />
+  );
 }

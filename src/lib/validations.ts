@@ -141,6 +141,46 @@ export const assignSeatSchema = z.object({
   registrationId: z.string().uuid().nullable(),
 });
 
+/** Saisie manuelle d'une équipe par un super admin. */
+export const manualTeamSchema = z.object({
+  tournamentId: z.string().uuid(),
+  teamName: z.string().min(2, 'Nom d’équipe requis').max(60),
+  teamTag: z.string().max(8).optional().or(z.literal('')),
+  captainFirstName: z.string().min(2, 'Prénom du référent requis').max(80),
+  captainLastName: z.string().min(2, 'Nom du référent requis').max(80),
+  contactEmail: z.string().email('Email de contact invalide'),
+  contactPhone: z.string().regex(PHONE, 'Téléphone de contact invalide'),
+  members: z
+    .array(
+      z.object({
+        firstName: z.string().min(2, 'Prénom requis').max(80),
+        lastName: z.string().min(2, 'Nom requis').max(80),
+        pseudo: z.string().min(2, 'Pseudo requis').max(40),
+        birthDate: z.coerce.date(),
+        isSubstitute: z.boolean().default(false),
+      }),
+    )
+    .min(1, 'Au moins un joueur')
+    .max(10),
+});
+
+/** Édition d'un tournoi depuis l'espace admin. */
+export const updateTournamentSchema = z.object({
+  name: z.string().min(2).max(120),
+  tagline: z.string().min(2).max(180),
+  formatLabel: z.string().min(2).max(160),
+  entryFeeCents: z.coerce.number().int().min(0).max(100_000),
+  maxPlayers: z.coerce.number().int().min(2).max(500),
+  maxTeams: z.coerce.number().int().min(0).max(200),
+  teamSize: z.coerce.number().int().min(1).max(10),
+  tableCount: z.coerce.number().int().min(1).max(200),
+  chairCount: z.coerce.number().int().min(1).max(500),
+  seatFormat: z.enum(['FIXED', 'ROTATION']),
+  registrationOpen: z.coerce.boolean(),
+});
+
+export type UpdateTournamentInput = z.infer<typeof updateTournamentSchema>;
+
 export const promoteUserSchema = z.object({
   userId: z.string().uuid(),
   role: z.enum(['PLAYER', 'ORGANIZER', 'ADMIN', 'SUPER_ADMIN']),

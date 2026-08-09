@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Check, X, Shield, Crown, Mail, Phone, ShieldAlert, Users } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { reviewTeam } from '@/app/actions/admin';
+import { ManualTeamForm } from './manual-team-form';
 import { cn, formatPrice } from '@/lib/utils';
 
 export type ReviewableTeam = {
@@ -43,7 +44,15 @@ function ageAtEvent(iso: string) {
   return age;
 }
 
-export function TeamReviewList({ teams }: { teams: ReviewableTeam[] }) {
+export function TeamReviewList({
+  teams,
+  tournaments,
+  canCreateManually,
+}: {
+  teams: ReviewableTeam[];
+  tournaments: { id: string; name: string; teamSize: number }[];
+  canCreateManually: boolean;
+}) {
   const router = useRouter();
   const [filter, setFilter] = useState<'PENDING' | 'ALL'>('PENDING');
   const [rejecting, setRejecting] = useState<ReviewableTeam | null>(null);
@@ -86,7 +95,8 @@ export function TeamReviewList({ teams }: { teams: ReviewableTeam[] }) {
             {pendingCount} en attente · {teams.length} au total
           </p>
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {canCreateManually && <ManualTeamForm tournaments={tournaments} />}
           {(
             [
               ['PENDING', 'À traiter'],

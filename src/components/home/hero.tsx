@@ -141,7 +141,7 @@ export function Hero({
         >
           <span className="flex items-center gap-2">
             <Calendar className="size-4 text-rage-orange" />
-            23 &amp; 24 octobre 2026
+            24 &amp; 25 octobre 2026
           </span>
           <span className="flex items-center gap-2">
             <MapPin className="size-4 text-rage-orange" />
