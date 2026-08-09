@@ -110,7 +110,7 @@ $bytes = New-Object byte[] 32
 $rng.GetBytes($bytes)
 $secret = [Convert]::ToBase64String($bytes)
 
-@"
+$envContent = @"
 DATABASE_URL="postgresql://postgres:$encoded@localhost:5432/rage_lan_2?schema=public"
 
 AUTH_SECRET="$secret"
@@ -123,7 +123,16 @@ NEXT_PUBLIC_EVENT_DATE="2026-10-17"
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=""
-"@ | Set-Content '.env' -Encoding utf8
+"@
+
+# `Set-Content -Encoding utf8` ecrit un BOM en PowerShell 5.1, ce qui
+# collerait un caractere invisible devant DATABASE_URL et casserait la
+# lecture du fichier. On force donc l'UTF-8 sans BOM.
+[System.IO.File]::WriteAllText(
+  (Join-Path (Get-Location) '.env'),
+  $envContent,
+  (New-Object System.Text.UTF8Encoding($false))
+)
 
 $plain = $null
 $env:PGPASSWORD = $null
