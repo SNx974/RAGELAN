@@ -11,7 +11,8 @@ import {
   ScanLine,
   Wallet,
 } from 'lucide-react';
-import { getSession, hasRole } from '@/lib/auth';
+import { getViewer, hasRole } from '@/lib/auth';
+import { AccessDenied } from '@/components/layout/access-denied';
 
 const LINKS = [
   { href: '/admin', label: 'Vue d’ensemble', icon: LayoutDashboard },
@@ -28,8 +29,15 @@ const LINKS = [
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  if (!session || !hasRole(session.role, 'ADMIN')) redirect('/login?next=/admin');
+  // `getViewer` confronte le jeton à la base : un cookie survivant à une
+  // remise à zéro ne doit pas donner l'illusion d'une session valide.
+  const session = await getViewer();
+  if (!session) redirect('/login?next=/admin');
+  if (!hasRole(session.role, 'ADMIN')) {
+    return (
+      <AccessDenied currentRole={session.role} requiredRole="ADMIN" area="L’espace admin" />
+    );
+  }
 
   return (
     <div className="container grid gap-6 py-6 lg:grid-cols-[236px_1fr] lg:gap-8 lg:py-10">

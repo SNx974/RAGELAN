@@ -1,13 +1,26 @@
 import { redirect } from 'next/navigation';
 import { ScanLine } from 'lucide-react';
 import { getCurrentUser, hasRole } from '@/lib/auth';
+import { AccessDenied } from '@/components/layout/access-denied';
 import { QrScanner } from '@/components/staff/qr-scanner';
 
 export const dynamic = 'force-dynamic';
 
 export default async function StaffScanPage() {
+  // Pas de session du tout : on renvoie vers la connexion.
+  // Session valide mais rôle insuffisant : on l'explique, sans boucler
+  // sur une page de connexion qui n'a rien à résoudre.
   const user = await getCurrentUser();
-  if (!user || !hasRole(user.role, 'ORGANIZER')) redirect('/login?next=/staff/scan');
+  if (!user) redirect('/login?next=/staff/scan');
+  if (!hasRole(user.role, 'ORGANIZER')) {
+    return (
+      <AccessDenied
+        currentRole={user.role}
+        requiredRole="ORGANIZER"
+        area="Le scan et le pointage"
+      />
+    );
+  }
 
   const isAdmin = hasRole(user.role, 'ADMIN');
   const scopes = user.organizerScopes.map((s) => s.tournament.name);

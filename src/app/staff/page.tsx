@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { ClipboardCheck, GitBranch, MapPinned, Download, ScanLine } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser, hasRole } from '@/lib/auth';
+import { AccessDenied } from '@/components/layout/access-denied';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Reveal, RevealGroup } from '@/components/motion/reveal';
@@ -11,7 +12,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function StaffHomePage() {
   const user = await getCurrentUser();
-  if (!user || !hasRole(user.role, 'ORGANIZER')) redirect('/login?next=/staff');
+  if (!user) redirect('/login?next=/staff');
+  if (!hasRole(user.role, 'ORGANIZER')) {
+    return (
+      <AccessDenied currentRole={user.role} requiredRole="ORGANIZER" area="L’espace staff" />
+    );
+  }
 
   const scopeIds = user.organizerScopes.map((s) => s.tournamentId);
   const tournaments = await prisma.tournament.findMany({

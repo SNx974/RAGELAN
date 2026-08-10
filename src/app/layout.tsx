@@ -4,7 +4,7 @@ import { Toaster } from 'sonner';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
 import { PageLoader } from '@/components/ui/page-loader';
-import { getSession } from '@/lib/auth';
+import { getViewer } from '@/lib/auth';
 import { getLogoSrc } from '@/lib/logo';
 import './globals.css';
 
@@ -36,7 +36,9 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
+  // Session confrontée à la base : l'en-tête ne doit jamais annoncer
+  // « connecté » si le compte n'existe plus.
+  const session = await getViewer();
   const logoSrc = getLogoSrc();
 
   return (

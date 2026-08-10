@@ -77,6 +77,39 @@ export const getCurrentUser = cache(async () => {
   });
 });
 
+/**
+ * Session **vérifiée en base**, pour l'affichage.
+ *
+ * `getSession()` ne lit que le jeton : après une remise à zéro de la
+ * base, les comptes changent d'identifiant et le cookie continue de
+ * décrire un utilisateur qui n'existe plus. L'en-tête affichait alors
+ * « connecté » pendant que les pages protégées renvoyaient vers la
+ * connexion. On confronte donc le jeton à la base.
+ */
+export const getViewer = cache(async (): Promise<SessionPayload | null> => {
+  const session = await getSession();
+  if (!session) return null;
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: session.sub },
+      select: { id: true, email: true, role: true, firstName: true, lastName: true },
+    });
+    if (!user) return null;
+
+    // Le rôle peut avoir changé depuis l'émission du jeton.
+    return {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      name: `${user.firstName} ${user.lastName}`,
+    };
+  } catch {
+    // Base injoignable : on n'invente pas de session.
+    return null;
+  }
+});
+
 const RANK: Record<Role, number> = {
   PLAYER: 0,
   ORGANIZER: 1,

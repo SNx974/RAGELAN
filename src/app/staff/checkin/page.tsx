@@ -1,13 +1,17 @@
 import { redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser, hasRole } from '@/lib/auth';
+import { AccessDenied } from '@/components/layout/access-denied';
 import { CheckInConsole, type CheckInRow } from '@/components/staff/checkin-console';
 
 export const dynamic = 'force-dynamic';
 
 export default async function StaffCheckInPage() {
   const user = await getCurrentUser();
-  if (!user || !hasRole(user.role, 'ORGANIZER')) redirect('/login?next=/staff/checkin');
+  if (!user) redirect('/login?next=/staff/checkin');
+  if (!hasRole(user.role, 'ORGANIZER')) {
+    return <AccessDenied currentRole={user.role} requiredRole="ORGANIZER" area="Le check-in" />;
+  }
 
   // Un ORGANIZER ne voit que ses tournois ; ADMIN+ voit tout.
   const scopeIds = user.organizerScopes.map((s) => s.tournamentId);
