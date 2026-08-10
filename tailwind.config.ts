@@ -104,6 +104,24 @@ const config: Config = {
           '0%': { transform: 'translateY(-100%)' },
           '100%': { transform: 'translateY(400%)' },
         },
+        // scaleX plutôt que width : composé sur le GPU, sans recalcul de
+        // mise en page à chaque frame.
+        'loader-bar': {
+          '0%': { transform: 'scaleX(0)' },
+          '100%': { transform: 'scaleX(1)' },
+        },
+        'loader-halo': {
+          '0%, 100%': { opacity: '0.3' },
+          '50%': { opacity: '0.65' },
+        },
+        'loader-in': {
+          '0%': { opacity: '0', transform: 'scale(.92) translateY(10px)' },
+          '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
+        },
+        'loader-shine': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(400%)' },
+        },
         'accordion-down': {
           from: { height: '0' },
           to: { height: 'var(--radix-accordion-content-height)' },
@@ -118,6 +136,10 @@ const config: Config = {
         'glitch-x': 'glitch-x 5s steps(1) infinite',
         'gradient-pan': 'gradient-pan 6s ease infinite',
         'scan-line': 'scan-line 5s linear infinite',
+        'loader-bar': 'loader-bar 1.1s cubic-bezier(.25,.1,.25,1) forwards',
+        'loader-halo': 'loader-halo 1.6s ease-in-out infinite',
+        'loader-in': 'loader-in .55s cubic-bezier(.16,1,.3,1) both',
+        'loader-shine': 'loader-shine 1.3s ease-in-out infinite',
         'accordion-down': 'accordion-down .2s ease-out',
         'accordion-up': 'accordion-up .2s ease-out',
       },

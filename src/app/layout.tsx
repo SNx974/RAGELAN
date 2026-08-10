@@ -3,6 +3,7 @@ import { Inter, Chakra_Petch } from 'next/font/google';
 import { Toaster } from 'sonner';
 import { SiteHeader } from '@/components/layout/site-header';
 import { SiteFooter } from '@/components/layout/site-footer';
+import { PageLoader } from '@/components/ui/page-loader';
 import { getSession } from '@/lib/auth';
 import { getLogoSrc } from '@/lib/logo';
 import './globals.css';
@@ -41,6 +42,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="fr" className="dark">
       <body className={`${inter.variable} ${chakra.variable} font-sans min-h-screen`}>
+        <PageLoader logoSrc={logoSrc} />
         <SiteHeader session={session} logoSrc={logoSrc} />
         <main className="min-h-[70vh]">{children}</main>
         <SiteFooter logoSrc={logoSrc} />
