@@ -26,35 +26,61 @@ export default async function RegistrationPage({ params }: { params: { slug: str
   const user = await getCurrentUser();
   if (!user) redirect(`/login?next=/inscription/${params.slug}`);
 
-  const tournament = await prisma.tournament.findUnique({
-    where: { slug: params.slug },
-    include: {
-      _count: {
-        select: {
-          registrations: { where: { status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] } } },
+  /*
+    Contrairement aux pages publiques, cette page ne peut pas retomber sur
+    des données statiques : inscrire quelqu'un exige la vraie base. On
+    intercepte quand même l'échec, sinon un schéma non migré produit une
+    page blanche « server-side exception » illisible pour le joueur.
+  */
+  let data;
+  try {
+    const tournament = await prisma.tournament.findUnique({
+      where: { slug: params.slug },
+      include: {
+        _count: {
+          select: {
+            registrations: { where: { status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] } } },
+          },
         },
       },
-    },
-  });
-  if (!tournament) notFound();
+    });
+    if (!tournament) notFound();
 
-  const settings = await prisma.eventSettings.findUnique({ where: { id: 1 } });
+    const settings = await prisma.eventSettings.findUnique({ where: { id: 1 } });
+
+    // Une seule équipe par compte : on prévient avant de saisir un roster.
+    const existingTeam =
+      tournament.teamSize > 1
+        ? await prisma.team.findUnique({
+            where: { captainId: user.id },
+            include: { tournament: { select: { name: true } } },
+          })
+        : null;
+
+    const alreadyRegistered = await prisma.registration.findUnique({
+      where: { userId_tournamentId: { userId: user.id, tournamentId: tournament.id } },
+      select: { id: true },
+    });
+
+    data = { tournament, settings, existingTeam, alreadyRegistered };
+  } catch (error) {
+    // `notFound()` lève volontairement : il ne doit pas être avalé ici.
+    if (isNotFoundError(error)) throw error;
+
+    console.error('[inscription] base indisponible ou schéma désynchronisé :', error);
+    return (
+      <div className="container max-w-3xl py-10">
+        <Blocked title="Inscription momentanément indisponible">
+          Le service d&apos;inscription ne répond pas. Réessaie dans quelques minutes — si le
+          problème persiste, préviens l&apos;organisation.
+        </Blocked>
+      </div>
+    );
+  }
+
+  const { tournament, settings, existingTeam, alreadyRegistered } = data;
   const globallyClosed = settings ? !settings.registrationsOpen : false;
   const slotsLeft = Math.max(0, tournament.maxPlayers - tournament._count.registrations);
-
-  // Une seule équipe par compte : on prévient avant de saisir un roster.
-  const existingTeam =
-    tournament.teamSize > 1
-      ? await prisma.team.findUnique({
-          where: { captainId: user.id },
-          include: { tournament: { select: { name: true } } },
-        })
-      : null;
-
-  const alreadyRegistered = await prisma.registration.findUnique({
-    where: { userId_tournamentId: { userId: user.id, tournamentId: tournament.id } },
-    select: { id: true },
-  });
 
   const shared = {
     tournament: {
@@ -117,6 +143,22 @@ export default async function RegistrationPage({ params }: { params: { slug: str
         <SoloRegistrationForm {...shared} />
       )}
     </div>
+  );
+}
+
+/**
+ * `notFound()` et `redirect()` fonctionnent en levant une exception que
+ * Next intercepte plus haut. Un `catch` générique les avalerait : on les
+ * reconnaît à leur digest pour les relancer telles quelles.
+ */
+function isNotFoundError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'digest' in error &&
+    typeof (error as { digest?: unknown }).digest === 'string' &&
+    ((error as { digest: string }).digest === 'NEXT_NOT_FOUND' ||
+      (error as { digest: string }).digest.startsWith('NEXT_REDIRECT'))
   );
 }
 
