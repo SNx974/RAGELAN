@@ -34,6 +34,9 @@ CREATE TYPE "SeatKind" AS ENUM ('PC', 'CONSOLE', 'TABLE_TCG', 'STAFF', 'FREEPLAY
 -- CreateEnum
 CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 
+-- CreateEnum
+CREATE TYPE "ShareStatus" AS ENUM ('PENDING', 'PAID', 'CANCELLED');
+
 -- CreateTable
 CREATE TABLE "users" (
     "id" UUID NOT NULL,
@@ -89,6 +92,7 @@ CREATE TABLE "tournaments" (
     "format_label" VARCHAR(160) NOT NULL,
     "bracket_type" "BracketType" NOT NULL DEFAULT 'SINGLE_ELIMINATION',
     "entry_fee_cents" INTEGER NOT NULL DEFAULT 0,
+    "reserve_threshold" INTEGER NOT NULL DEFAULT 3,
     "accent_from" VARCHAR(9) NOT NULL DEFAULT '#FF2A2A',
     "accent_to" VARCHAR(9) NOT NULL DEFAULT '#FF6B00',
     "cover_image" TEXT,
@@ -194,6 +198,23 @@ CREATE TABLE "payments" (
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "payment_shares" (
+    "id" UUID NOT NULL,
+    "team_id" UUID NOT NULL,
+    "team_member_id" UUID NOT NULL,
+    "token" VARCHAR(48) NOT NULL,
+    "amount_cents" INTEGER NOT NULL,
+    "status" "ShareStatus" NOT NULL DEFAULT 'PENDING',
+    "stripe_session_id" TEXT,
+    "method" VARCHAR(20),
+    "paid_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "payment_shares_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -366,6 +387,18 @@ CREATE INDEX "payments_user_id_idx" ON "payments"("user_id");
 CREATE INDEX "payments_status_idx" ON "payments"("status");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "payment_shares_team_member_id_key" ON "payment_shares"("team_member_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payment_shares_token_key" ON "payment_shares"("token");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "payment_shares_stripe_session_id_key" ON "payment_shares"("stripe_session_id");
+
+-- CreateIndex
+CREATE INDEX "payment_shares_team_id_status_idx" ON "payment_shares"("team_id", "status");
+
+-- CreateIndex
 CREATE INDEX "brackets_tournament_id_idx" ON "brackets"("tournament_id");
 
 -- CreateIndex
@@ -442,6 +475,12 @@ ALTER TABLE "payments" ADD CONSTRAINT "payments_user_id_fkey" FOREIGN KEY ("user
 
 -- AddForeignKey
 ALTER TABLE "payments" ADD CONSTRAINT "payments_registration_id_fkey" FOREIGN KEY ("registration_id") REFERENCES "registrations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payment_shares" ADD CONSTRAINT "payment_shares_team_id_fkey" FOREIGN KEY ("team_id") REFERENCES "teams"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "payment_shares" ADD CONSTRAINT "payment_shares_team_member_id_fkey" FOREIGN KEY ("team_member_id") REFERENCES "team_members"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "brackets" ADD CONSTRAINT "brackets_tournament_id_fkey" FOREIGN KEY ("tournament_id") REFERENCES "tournaments"("id") ON DELETE CASCADE ON UPDATE CASCADE;

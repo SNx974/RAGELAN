@@ -19,6 +19,7 @@ export type TournamentCardData = {
   tagline: string;
   platform: string;
   maxPlayers: number;
+  teamSize: number;
   formatLabel: string;
   entryFeeCents: number;
   accentFrom: string;
@@ -126,7 +127,18 @@ export function TournamentCard({ tournament: t }: { tournament: TournamentCardDa
                   {t.registered} / {t.maxPlayers} inscrits
                 </span>
                 <span className="text-white">
-                  {t.entryFeeCents > 0 ? formatPrice(t.entryFeeCents) : 'Gratuit'}
+                  {t.entryFeeCents > 0 ? (
+                    <>
+                      {formatPrice(t.entryFeeCents)}
+                      {/* Le prix affiché est celui d'un joueur : sur un jeu
+                          en équipe, le total est un multiple. */}
+                      {t.teamSize > 1 && (
+                        <span className="font-normal text-white/40"> / joueur</span>
+                      )}
+                    </>
+                  ) : (
+                    'Gratuit'
+                  )}
                 </span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">

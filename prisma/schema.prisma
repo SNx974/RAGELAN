@@ -98,6 +98,13 @@ enum ApprovalStatus {
   REJECTED
 }
 
+/// État d'une part de paiement individuelle (jeux en équipe).
+enum ShareStatus {
+  PENDING
+  PAID
+  CANCELLED
+}
+
 // ─────────────────────────── USERS ───────────────────────────
 
 model User {
@@ -180,7 +187,12 @@ model Tournament {
   formatLabel String      @map("format_label") @db.VarChar(160)
   bracketType BracketType @default(SINGLE_ELIMINATION) @map("bracket_type")
 
+  /// Prix **par joueur**. Le total d'une équipe vaut donc
+  /// entryFeeCents × teamSize (ex. 20 € × 5 = 100 €).
   entryFeeCents Int     @default(0) @map("entry_fee_cents")
+  /// Nombre de parts payées à partir duquel la place d'une équipe est
+  /// réservée. En deçà, l'équipe reste en liste d'attente.
+  reserveThreshold Int  @default(3) @map("reserve_threshold")
   accentFrom    String  @default("#FF2A2A") @map("accent_from") @db.VarChar(9)
   accentTo      String  @default("#FF6B00") @map("accent_to") @db.VarChar(9)
   coverImage    String? @map("cover_image")
@@ -252,6 +264,7 @@ model Team {
   captain       User            @relation("TeamCaptain", fields: [captainId], references: [id], onDelete: Restrict)
   reviewedBy    User?           @relation("TeamReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   members       TeamMember[]
+  shares        PaymentShare[]
   registrations Registration[]
   seatPlacements SeatPlacement[]
   homeMatches   Match[]         @relation("MatchTeamA")
@@ -290,8 +303,9 @@ model TeamMember {
 
   createdAt DateTime @default(now()) @map("created_at")
 
-  team Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  team  Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user  User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  share PaymentShare?
 
   @@unique([teamId, pseudo], map: "uq_member_pseudo_per_team")
   @@index([userId])
@@ -359,6 +373,35 @@ model Payment {
   @@index([userId])
   @@index([status])
   @@map("payments")
+}
+
+/// Part de paiement d'un joueur d'équipe.
+///
+/// Le capitaine peut tout régler d'un coup, ou distribuer un lien par
+/// joueur. `token` est l'identifiant public du lien : il ne doit pas
+/// être devinable, d'où sa génération aléatoire.
+model PaymentShare {
+  id           String @id @default(uuid()) @db.Uuid
+  teamId       String @map("team_id") @db.Uuid
+  teamMemberId String @unique @map("team_member_id") @db.Uuid
+
+  token       String      @unique @db.VarChar(48)
+  amountCents Int         @map("amount_cents")
+  status      ShareStatus @default(PENDING)
+
+  stripeSessionId String?   @unique @map("stripe_session_id")
+  /// Renseigné aussi pour un encaissement sur place par le staff.
+  method          String?   @db.VarChar(20)
+  paidAt          DateTime? @map("paid_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  team   Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  member TeamMember @relation(fields: [teamMemberId], references: [id], onDelete: Cascade)
+
+  @@index([teamId, status])
+  @@map("payment_shares")
 }
 
 // ─────────────────── BRACKETS & MATCHS ───────────────────────

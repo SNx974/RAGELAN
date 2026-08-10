@@ -1,75 +1,159 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { getStripe } from '@/lib/payments';
+import { totalDueCents } from '@/lib/pricing';
 
 export const runtime = 'nodejs';
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
 /**
  * POST /api/payments/checkout
  *
- * Squelette Stripe Checkout. Renseigne STRIPE_SECRET_KEY puis décommente
- * le bloc ci-dessous — le reste de la chaîne (Payment, statuts, webhook)
- * est déjà en place côté base.
+ * Ouvre une session Stripe Checkout pour l'un des trois cas :
+ *   { registrationId }  paiement intégral d'un joueur solo
+ *   { teamId }          le capitaine règle toute son équipe
+ *   { shareToken }      un joueur règle sa part (lien public, sans compte)
  */
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Connexion requise' }, { status: 401 });
-
-  const { registrationId } = (await request.json()) as { registrationId?: string };
-  if (!registrationId) {
-    return NextResponse.json({ error: 'registrationId manquant' }, { status: 400 });
-  }
-
-  const registration = await prisma.registration.findUnique({
-    where: { id: registrationId },
-    include: { tournament: true, user: { select: { email: true } } },
-  });
-
-  if (!registration || registration.userId !== session.sub) {
-    return NextResponse.json({ error: 'Inscription introuvable' }, { status: 404 });
-  }
-  if (registration.paymentStatus === 'PAID_ONLINE' || registration.paymentStatus === 'PAID_ON_SITE') {
-    return NextResponse.json({ error: 'Cette inscription est déjà réglée' }, { status: 409 });
-  }
-
-  if (!process.env.STRIPE_SECRET_KEY) {
+  const stripe = getStripe();
+  if (!stripe) {
     return NextResponse.json(
-      { error: 'Le paiement en ligne n’est pas encore activé. Choisis « payer sur place ».' },
+      { error: 'Le paiement en ligne n’est pas encore activé.' },
       { status: 503 },
     );
   }
 
-  // ── Intégration Stripe (à activer) ─────────────────────────
-  //
-  // const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
-  // const checkout = await stripe.checkout.sessions.create({
-  //   mode: 'payment',
-  //   customer_email: registration.user.email,
-  //   line_items: [{
-  //     quantity: 1,
-  //     price_data: {
-  //       currency: 'eur',
-  //       unit_amount: registration.tournament.entryFeeCents,
-  //       product_data: { name: `R.A.G.E LAN 2 — ${registration.tournament.name}` },
-  //     },
-  //   }],
-  //   success_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?paid=1`,
-  //   cancel_url: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard?canceled=1`,
-  //   metadata: { registrationId },
-  // });
-  //
-  // await prisma.payment.create({
-  //   data: {
-  //     userId: registration.userId,
-  //     registrationId,
-  //     amountCents: registration.tournament.entryFeeCents,
-  //     status: 'PENDING',
-  //     method: 'stripe',
-  //     stripeSessionId: checkout.id,
-  //   },
-  // });
-  //
-  // return NextResponse.json({ url: checkout.url });
+  const body = (await request.json()) as {
+    registrationId?: string;
+    teamId?: string;
+    shareToken?: string;
+  };
 
-  return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });
+  // ── Part individuelle : accessible sans compte, via le jeton du lien ──
+  if (body.shareToken) {
+    const share = await prisma.paymentShare.findUnique({
+      where: { token: body.shareToken },
+      include: {
+        member: { select: { pseudo: true, firstName: true, lastName: true, email: true } },
+        team: { include: { tournament: { select: { name: true } } } },
+      },
+    });
+    if (!share) return NextResponse.json({ error: 'Lien inconnu' }, { status: 404 });
+    if (share.status === 'PAID') {
+      return NextResponse.json({ error: 'Cette part est déjà réglée.' }, { status: 409 });
+    }
+
+    const checkout = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: share.member.email ?? undefined,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'eur',
+            unit_amount: share.amountCents,
+            product_data: {
+              name: `${share.team.tournament.name} — ${share.team.name}`,
+              description: `Part de ${share.member.firstName} ${share.member.lastName} (${share.member.pseudo})`,
+            },
+          },
+        },
+      ],
+      success_url: `${APP_URL}/paiement/${share.token}?paye=1`,
+      cancel_url: `${APP_URL}/paiement/${share.token}?annule=1`,
+      metadata: { kind: 'share', shareId: share.id },
+    });
+
+    await prisma.paymentShare.update({
+      where: { id: share.id },
+      data: { stripeSessionId: checkout.id },
+    });
+
+    return NextResponse.json({ url: checkout.url });
+  }
+
+  // ── Les deux autres cas exigent un compte ──────────────────────────
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'Connexion requise' }, { status: 401 });
+
+  if (body.teamId) {
+    const team = await prisma.team.findUnique({
+      where: { id: body.teamId },
+      include: {
+        tournament: { select: { name: true, entryFeeCents: true, teamSize: true } },
+        shares: { where: { status: 'PENDING' }, select: { id: true, amountCents: true } },
+      },
+    });
+    if (!team) return NextResponse.json({ error: 'Équipe introuvable' }, { status: 404 });
+    if (team.captainId !== session.sub) {
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
+    }
+    if (team.shares.length === 0) {
+      return NextResponse.json({ error: 'Tout est déjà réglé.' }, { status: 409 });
+    }
+
+    const amount = team.shares.reduce((sum, s) => sum + s.amountCents, 0);
+    const checkout = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: team.contactEmail,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'eur',
+            unit_amount: amount,
+            product_data: {
+              name: `${team.tournament.name} — ${team.name}`,
+              description: `${team.shares.length} place(s) restante(s)`,
+            },
+          },
+        },
+      ],
+      success_url: `${APP_URL}/dashboard?paye=1`,
+      cancel_url: `${APP_URL}/dashboard?annule=1`,
+      metadata: { kind: 'team', teamId: team.id },
+    });
+
+    return NextResponse.json({ url: checkout.url });
+  }
+
+  if (body.registrationId) {
+    const registration = await prisma.registration.findUnique({
+      where: { id: body.registrationId },
+      include: {
+        tournament: { select: { name: true, entryFeeCents: true, teamSize: true } },
+        user: { select: { email: true } },
+      },
+    });
+    if (!registration || registration.userId !== session.sub) {
+      return NextResponse.json({ error: 'Inscription introuvable' }, { status: 404 });
+    }
+    if (registration.paymentStatus === 'PAID_ONLINE') {
+      return NextResponse.json({ error: 'Déjà réglé.' }, { status: 409 });
+    }
+
+    const checkout = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      customer_email: registration.user.email,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'eur',
+            unit_amount: totalDueCents(registration.tournament),
+            product_data: { name: `R.A.G.E LAN 2 — ${registration.tournament.name}` },
+          },
+        },
+      ],
+      success_url: `${APP_URL}/dashboard?paye=1`,
+      cancel_url: `${APP_URL}/dashboard?annule=1`,
+      metadata: { kind: 'solo', registrationId: registration.id },
+    });
+
+    return NextResponse.json({ url: checkout.url });
+  }
+
+  return NextResponse.json({ error: 'Requête incomplète' }, { status: 400 });
 }

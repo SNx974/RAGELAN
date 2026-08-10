@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Reveal } from '@/components/motion/reveal';
 import { StripeCheckoutButton } from '@/components/payments/stripe-checkout-button';
+import { TeamPaymentPanel } from '@/components/payments/team-payment-panel';
+import { totalDueCents } from '@/lib/pricing';
 import { formatPrice } from '@/lib/utils';
 import { logoutAction } from '@/app/actions/auth';
 
@@ -28,11 +30,18 @@ export default async function DashboardPage() {
     where: { userId: session.sub },
     include: {
       tournament: true,
-      team: { include: { members: true } },
+      team: {
+        include: {
+          members: true,
+          shares: { include: { member: true }, orderBy: { createdAt: 'asc' } },
+        },
+      },
       seatPlacement: { include: { seat: true } },
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
 
   const due = registrations
     .filter((r) => r.paymentStatus === 'PENDING' || r.paymentStatus === 'PAY_ON_SITE')
@@ -138,12 +147,33 @@ export default async function DashboardPage() {
                       />
                     </div>
 
-                    {needsPayment && (
-                      <StripeCheckoutButton
-                        registrationId={r.id}
-                        amountCents={r.tournament.entryFeeCents}
-                        className="mt-5"
-                      />
+                    {/* Équipe : suivi des parts et règlement. Solo : paiement direct. */}
+                    {r.team ? (
+                      <div className="mt-5">
+                        <TeamPaymentPanel
+                          teamId={r.team.id}
+                          teamName={r.team.name}
+                          teamSize={r.tournament.teamSize}
+                          reserveThreshold={r.tournament.reserveThreshold}
+                          appUrl={appUrl}
+                          shares={r.team.shares.map((s) => ({
+                            id: s.id,
+                            token: s.token,
+                            pseudo: s.member.pseudo,
+                            fullName: `${s.member.firstName} ${s.member.lastName}`,
+                            amountCents: s.amountCents,
+                            paid: s.status === 'PAID',
+                          }))}
+                        />
+                      </div>
+                    ) : (
+                      needsPayment && (
+                        <StripeCheckoutButton
+                          registrationId={r.id}
+                          amountCents={totalDueCents(r.tournament)}
+                          className="mt-5"
+                        />
+                      )
                     )}
                   </div>
                 </div>

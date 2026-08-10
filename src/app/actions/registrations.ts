@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache';
 import { prisma } from '@/lib/prisma';
 import { getSession, requireTournamentAccess } from '@/lib/auth';
-import { captainRegistrationSchema, soloRegistrationSchema } from '@/lib/validations';
+import { captainRegistrationSchema, soloRegistrationSchema, validateLogo } from '@/lib/validations';
+import { generateShareToken, shareAmountCents, totalDueCents } from '@/lib/pricing';
+import { sendRegistrationReceivedEmail } from '@/lib/email';
+import { formatPrice } from '@/lib/utils';
 
 /**
  * Inscription d'un capitaine avec son roster.
@@ -110,14 +113,31 @@ export async function registerAsCaptain(
         },
       });
 
+      // Une part de paiement par joueur du roster. Le capitaine peut
+      // toutes les régler d'un coup, ou distribuer un lien par joueur.
+      const roster = await tx.teamMember.findMany({
+        where: { teamId: team.id },
+        select: { id: true },
+      });
+      await tx.paymentShare.createMany({
+        data: roster.map((m) => ({
+          teamId: team.id,
+          teamMemberId: m.id,
+          token: generateShareToken(),
+          amountCents: shareAmountCents(tournament),
+        })),
+      });
+
       const registration = await tx.registration.create({
         data: {
           userId: captain.id,
           tournamentId: tournament.id,
           teamId: team.id,
           type: 'TEAM_CAPTAIN',
-          status: overflow ? 'WAITLIST' : 'PENDING',
-          paymentStatus: data.paymentChoice === 'ON_SITE' ? 'PAY_ON_SITE' : 'PENDING',
+          // Tant qu'aucune part n'est réglée, l'équipe ne consomme
+          // aucune place : elle reste en liste d'attente.
+          status: 'WAITLIST',
+          paymentStatus: 'PENDING',
           ign: data.ign || null,
         },
       });
@@ -135,9 +155,17 @@ export async function registerAsCaptain(
       return { teamId: team.id, registrationId: registration.id, waitlisted: overflow };
     });
 
+    await sendRegistrationReceivedEmail({
+      to: data.contactEmail,
+      firstName: data.teamName,
+      tournamentName: tournament.name,
+      isTeam: true,
+      priceLabel: `${formatPrice(totalDueCents(tournament))} (${formatPrice(shareAmountCents(tournament))} par joueur)`,
+    });
+
     revalidatePath('/dashboard');
     revalidatePath(`/tournois/${tournament.slug}`);
-    return { success: true, ...result };
+    return { success: true as const, ...result };
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erreur inconnue';
     if (message.includes('uq_team_name_per_tournament')) {
@@ -148,6 +176,38 @@ export async function registerAsCaptain(
     }
     return { error: 'Inscription impossible : ' + message };
   }
+}
+
+/**
+ * Point d'entrée du formulaire équipe.
+ *
+ * Le logo est un fichier : il transite par un `FormData`, le reste du
+ * formulaire étant sérialisé en JSON dans le même envoi.
+ */
+export async function submitTeamRegistration(formData: FormData) {
+  const raw = formData.get('payload');
+  if (typeof raw !== 'string') return { error: 'Formulaire invalide.' };
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return { error: 'Formulaire illisible.' };
+  }
+
+  const file = formData.get('logo');
+  let logo: { data: Buffer; mimeType: string } | undefined;
+
+  if (file instanceof File && file.size > 0) {
+    const problem = validateLogo({ type: file.type, size: file.size });
+    if (problem) return { error: problem };
+    logo = {
+      data: Buffer.from(await file.arrayBuffer()),
+      mimeType: file.type,
+    };
+  }
+
+  return registerAsCaptain(payload, logo);
 }
 
 /** Inscription d'un joueur solo. */
@@ -172,25 +232,46 @@ export async function registerAsSolo(input: unknown) {
     },
   });
 
+  if (taken >= tournament.maxPlayers) {
+    return { error: 'Ce tournoi est complet.' };
+  }
+
+  let registrationId: string;
   try {
-    await prisma.registration.create({
+    // Tant que le paiement intégral n'est pas reçu, aucune place n'est
+    // tenue : l'inscription reste en liste d'attente. Le webhook Stripe
+    // la fera passer en attente de validation admin.
+    const created = await prisma.registration.create({
       data: {
         userId: session.sub,
         tournamentId: tournament.id,
         type: 'SOLO',
-        status: taken >= tournament.maxPlayers ? 'WAITLIST' : 'PENDING',
-        paymentStatus: data.paymentChoice === 'ON_SITE' ? 'PAY_ON_SITE' : 'PENDING',
+        status: 'WAITLIST',
+        paymentStatus: 'PENDING',
         ign: data.ign || null,
         notes: data.lookingForTeam ? 'Cherche une équipe' : null,
       },
     });
+    registrationId = created.id;
   } catch {
     return { error: 'Tu es déjà inscrit à ce tournoi.' };
   }
 
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: session.sub },
+    select: { email: true, firstName: true },
+  });
+  await sendRegistrationReceivedEmail({
+    to: user.email,
+    firstName: user.firstName,
+    tournamentName: tournament.name,
+    isTeam: false,
+    priceLabel: formatPrice(totalDueCents(tournament)),
+  });
+
   revalidatePath('/dashboard');
   revalidatePath(`/tournois/${tournament.slug}`);
-  return { success: true, waitlisted: taken >= tournament.maxPlayers };
+  return { success: true as const, registrationId };
 }
 
 /** Check-in staff le jour J. */

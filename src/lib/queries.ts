@@ -32,6 +32,7 @@ export async function getTournamentsWithCounts(): Promise<TournamentCardData[]> 
         tagline: t.tagline,
         platform: t.platform,
         maxPlayers: t.maxPlayers,
+        teamSize: t.teamSize,
         formatLabel: t.formatLabel,
         entryFeeCents: t.entryFeeCents,
         accentFrom: t.accentFrom,
@@ -52,6 +53,7 @@ export async function getTournamentsWithCounts(): Promise<TournamentCardData[]> 
     tagline: t.tagline,
     platform: t.platform,
     maxPlayers: t.maxPlayers,
+    teamSize: t.teamSize,
     formatLabel: t.formatLabel,
     entryFeeCents: t.entryFeeCents,
     accentFrom: t.accentFrom,
@@ -89,6 +91,10 @@ export type PresentedTeam = {
   tag: string | null;
   seed: number | null;
   hasLogo: boolean;
+  /** APPROVED = confirmée par un admin ; PENDING = en attente. */
+  confirmed: boolean;
+  paidShares: number;
+  teamSize: number;
   players: { pseudo: string; firstName: string; lastName: string; isCaptain: boolean; isSubstitute: boolean }[];
 };
 
@@ -107,10 +113,12 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
           },
         },
         teams: {
-          // Seules les équipes validées par un admin sont publiées.
-          where: { status: 'APPROVED' },
-          orderBy: [{ seed: 'asc' }, { name: 'asc' }],
+          // Les équipes sont visibles dès l'inscription, avec leur état.
+          // Seules les refusées restent masquées.
+          where: { status: { not: 'REJECTED' } },
+          orderBy: [{ status: 'asc' }, { seed: 'asc' }, { name: 'asc' }],
           include: {
+            shares: { where: { status: 'PAID' }, select: { id: true } },
             members: {
               orderBy: [{ isCaptain: 'desc' }, { isSubstitute: 'asc' }, { pseudo: 'asc' }],
               select: {
@@ -164,6 +172,9 @@ export async function getTournamentDetail(slug: string): Promise<TournamentDetai
         tag: team.tag,
         seed: team.seed,
         hasLogo: team.logoData !== null,
+        confirmed: team.status === 'APPROVED',
+        paidShares: team.shares.length,
+        teamSize: t.teamSize,
         players: team.members,
       })),
       matches: (t.brackets[0]?.matches ?? []).map((m) => ({

@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Crown, Shield, Users } from 'lucide-react';
+import { Check, Clock, Crown, Shield, Users } from 'lucide-react';
 import { staggerItem } from '@/components/motion/reveal';
 import { RevealGroup } from '@/components/motion/reveal';
 import type { PresentedTeam } from '@/lib/queries';
@@ -53,9 +53,24 @@ export function TeamRoster({ teams, accent }: { teams: PresentedTeam[]; accent: 
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-white/40">
-                  <Users className="size-3" />
-                  {team.players.length} joueur{team.players.length > 1 ? 's' : ''}
+                <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/40">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="size-3" />
+                    {team.players.length} joueur{team.players.length > 1 ? 's' : ''}
+                  </span>
+                  {/* L'équipe est visible dès l'inscription : son état doit
+                      l'être aussi, sinon on laisse croire à une place acquise. */}
+                  {team.confirmed ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-400">
+                      <Check className="size-2.5" />
+                      Confirmée
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rage-yellow/30 bg-rage-yellow/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-rage-yellow">
+                      <Clock className="size-2.5" />
+                      Attente de confirmation
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
