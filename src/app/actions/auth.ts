@@ -7,6 +7,19 @@ import { loginSchema, registerSchema } from '@/lib/validations';
 
 export type ActionState = { error?: string; fieldErrors?: Record<string, string[]> } | null;
 
+/**
+ * Destination après connexion, transmise par le middleware via `?next=`.
+ *
+ * Seuls les chemins internes sont acceptés : une valeur commençant par
+ * `//` ou `/\` serait interprétée comme une URL absolue par le
+ * navigateur et permettrait une redirection vers un site tiers.
+ */
+function safeNext(value: FormDataEntryValue | null): string | null {
+  if (typeof value !== 'string' || !value.startsWith('/')) return null;
+  if (value.startsWith('//') || value.startsWith('/\\')) return null;
+  return value;
+}
+
 export async function registerAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const parsed = registerSchema.safeParse({
     ...Object.fromEntries(formData),
@@ -46,7 +59,7 @@ export async function registerAction(_prev: ActionState, formData: FormData): Pr
     name: `${user.firstName} ${user.lastName}`,
   });
 
-  redirect('/dashboard');
+  redirect(safeNext(formData.get('next')) ?? '/dashboard');
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -68,7 +81,12 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
     name: `${user.firstName} ${user.lastName}`,
   });
 
-  redirect(user.role === 'PLAYER' ? '/dashboard' : user.role === 'ORGANIZER' ? '/staff' : '/admin');
+  // La destination demandée prime : c'est elle qui a provoqué la
+  // redirection vers la connexion.
+  redirect(
+    safeNext(formData.get('next')) ??
+      (user.role === 'PLAYER' ? '/dashboard' : user.role === 'ORGANIZER' ? '/staff' : '/admin'),
+  );
 }
 
 export async function logoutAction() {

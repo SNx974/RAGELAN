@@ -18,7 +18,7 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm() {
+export function LoginForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState<ActionState, FormData>(loginAction, null);
 
   return (
@@ -29,6 +29,9 @@ export function LoginForm() {
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="glass-card space-y-5 p-7"
     >
+      {/* Destination voulue avant la redirection vers la connexion. */}
+      {next && <input type="hidden" name="next" value={next} />}
+
       {state?.error && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}

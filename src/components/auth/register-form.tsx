@@ -44,7 +44,7 @@ function Field({
   );
 }
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next?: string }) {
   const [state, formAction] = useFormState<ActionState, FormData>(registerAction, null);
   const [birthDate, setBirthDate] = useState('');
 
@@ -59,6 +59,9 @@ export function RegisterForm() {
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       className="glass-card space-y-7 p-7 sm:p-9"
     >
+      {/* Destination voulue avant la redirection vers l'inscription. */}
+      {next && <input type="hidden" name="next" value={next} />}
+
       {state?.error && (
         <div className="flex items-center gap-2 rounded-lg border border-rage-red/30 bg-rage-red/10 px-3 py-2.5 text-sm text-rage-red">
           <AlertCircle className="size-4 shrink-0" />

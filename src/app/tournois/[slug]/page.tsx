@@ -123,7 +123,15 @@ export default async function TournamentPage({ params }: { params: { slug: strin
 
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button asChild size="lg" disabled={!tournament.registrationOpen}>
-                <Link href={session ? `/inscription/${tournament.slug}` : '/login'}>
+                {/* Déconnecté, on emporte la destination : la connexion
+                    ramènera directement au formulaire d'inscription. */}
+                <Link
+                  href={
+                    session
+                      ? `/inscription/${tournament.slug}`
+                      : `/login?next=${encodeURIComponent(`/inscription/${tournament.slug}`)}`
+                  }
+                >
                   <Swords />
                   {tournament.teamSize > 1 ? 'Inscrire mon équipe' : "S'inscrire"}
                 </Link>
