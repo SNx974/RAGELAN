@@ -84,6 +84,27 @@ export function sendRegistrationReceivedEmail(o: {
   });
 }
 
+/** Une place s'est libérée : le joueur passe de la liste d'attente à inscrit. */
+export function sendWaitlistPromotedEmail(o: {
+  to: string;
+  firstName: string;
+  tournamentName: string;
+  reference: string;
+}) {
+  return send({
+    to: o.to,
+    subject: `Une place s’est libérée — ${o.tournamentName}`,
+    html: layout(
+      'Tu passes de la liste d’attente aux inscrits',
+      `<p style="${P}">${o.firstName}, une place vient de se libérer sur
+       <strong style="color:#fff">${o.tournamentName}</strong> : elle est pour toi.</p>
+       <p style="${P}"><strong style="color:#fff">Règlement sur place le jour J.</strong>
+       Présente-toi à l’accueil avec ta référence, le paiement se fera à l’entrée.</p>
+       <p style="${P}">Ta référence : <strong style="color:#FF6B00;font-family:monospace;font-size:18px">${o.reference}</strong></p>`,
+    ),
+  });
+}
+
 /** Décision de l'admin sur une équipe. */
 export function sendTeamDecisionEmail(o: {
   to: string;

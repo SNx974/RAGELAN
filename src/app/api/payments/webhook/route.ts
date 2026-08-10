@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getStripe, markSharePaid, markSoloRegistrationPaid, markTeamFullyPaid } from '@/lib/payments';
+import {
+  getStripe,
+  handleRefund,
+  markSharePaid,
+  markSoloRegistrationPaid,
+  markTeamFullyPaid,
+} from '@/lib/payments';
 
 export const runtime = 'nodejs';
 // La signature Stripe se vérifie sur le corps brut : aucun cache, aucune
@@ -36,17 +42,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Signature invalide' }, { status: 400 });
   }
 
-  if (event.type !== 'checkout.session.completed') {
-    return NextResponse.json({ received: true });
-  }
-
-  const session = event.data.object as {
-    id: string;
-    metadata?: Record<string, string> | null;
-  };
-  const meta = session.metadata ?? {};
-
   try {
+    // ── Remboursement : le participant est désinscrit et sa place
+    //    remise en jeu au profit de la liste d'attente. ──────────────
+    if (event.type === 'charge.refunded') {
+      const charge = event.data.object as {
+        payment_intent?: string | null;
+        // Stripe ne remonte pas la session sur un charge : on retrouve
+        // le paiement par son PaymentIntent.
+      };
+      const result = await handleRefund(null, charge.payment_intent ?? null);
+      if (result.kind === 'unknown') {
+        console.warn('[stripe] remboursement sans paiement correspondant');
+      }
+      return NextResponse.json({ received: true });
+    }
+
+    if (event.type !== 'checkout.session.completed') {
+      return NextResponse.json({ received: true });
+    }
+
+    const session = event.data.object as {
+      id: string;
+      payment_intent?: string | null;
+      metadata?: Record<string, string> | null;
+    };
+    const meta = session.metadata ?? {};
+
     switch (meta.kind) {
       case 'share':
         await markSharePaid(meta.shareId, 'stripe', session.id);
@@ -55,7 +77,12 @@ export async function POST(request: Request) {
         await markTeamFullyPaid(meta.teamId, 'stripe');
         break;
       case 'solo':
-        await markSoloRegistrationPaid(meta.registrationId, 'stripe', session.id);
+        await markSoloRegistrationPaid(
+          meta.registrationId,
+          'stripe',
+          session.id,
+          session.payment_intent ?? null,
+        );
         break;
       default:
         console.warn('[stripe] session sans metadata exploitable :', session.id);

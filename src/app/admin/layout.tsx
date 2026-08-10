@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Settings,
   ScanLine,
+  Wallet,
 } from 'lucide-react';
 import { getSession, hasRole } from '@/lib/auth';
 
@@ -18,6 +19,8 @@ const LINKS = [
   { href: '/staff/scan', label: 'Scan & pointage', icon: ScanLine },
   { href: '/admin/equipes', label: 'Équipes à valider', icon: ShieldCheck },
   { href: '/admin/inscriptions', label: 'Inscriptions', icon: FileText },
+  { href: '/admin/participants', label: 'Participants', icon: Users },
+  { href: '/admin/paiements', label: 'Paiements', icon: Wallet },
   { href: '/admin/placement', label: 'Plan de salle', icon: MapPinned },
   { href: '/admin/staff', label: 'Staff & accès', icon: ShieldCheck },
   { href: '/admin/utilisateurs', label: 'Utilisateurs', icon: Users },

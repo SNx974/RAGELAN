@@ -35,7 +35,7 @@ CREATE TYPE "SeatKind" AS ENUM ('PC', 'CONSOLE', 'TABLE_TCG', 'STAFF', 'FREEPLAY
 CREATE TYPE "ApprovalStatus" AS ENUM ('PENDING', 'APPROVED', 'REJECTED');
 
 -- CreateEnum
-CREATE TYPE "ShareStatus" AS ENUM ('PENDING', 'PAID', 'CANCELLED');
+CREATE TYPE "ShareStatus" AS ENUM ('PENDING', 'PAID', 'REFUNDED', 'CANCELLED');
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -54,6 +54,8 @@ CREATE TABLE "users" (
     "role" "Role" NOT NULL DEFAULT 'PLAYER',
     "email_verified" TIMESTAMP(3),
     "avatar_url" TEXT,
+    "can_register" BOOLEAN NOT NULL DEFAULT true,
+    "created_by_admin" BOOLEAN NOT NULL DEFAULT false,
     "guardian_name" VARCHAR(160),
     "guardian_phone" VARCHAR(30),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

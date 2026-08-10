@@ -3,6 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { getStripe } from '@/lib/payments';
 import { totalDueCents } from '@/lib/pricing';
+import { formatPrice } from '@/lib/utils';
+
+/** Libellé du relevé Stripe : NOM - PRENOM - TOURNOI - MONTANT. */
+function paymentLabel(lastName: string, firstName: string, tournament: string, cents: number) {
+  return `${lastName.toUpperCase()} - ${firstName} - ${tournament} - ${formatPrice(cents)}`;
+}
 
 export const runtime = 'nodejs';
 
@@ -36,7 +42,9 @@ export async function POST(request: Request) {
     const share = await prisma.paymentShare.findUnique({
       where: { token: body.shareToken },
       include: {
-        member: { select: { pseudo: true, firstName: true, lastName: true, email: true } },
+        member: {
+          select: { pseudo: true, firstName: true, lastName: true, email: true, reference: true },
+        },
         team: { include: { tournament: { select: { name: true } } } },
       },
     });
@@ -55,8 +63,16 @@ export async function POST(request: Request) {
             currency: 'eur',
             unit_amount: share.amountCents,
             product_data: {
-              name: `${share.team.tournament.name} — ${share.team.name}`,
-              description: `Part de ${share.member.firstName} ${share.member.lastName} (${share.member.pseudo})`,
+              // Format impose : NOM - PRENOM - TOURNOI - MONTANT.
+              // C'est ce libelle qui apparait sur le releve Stripe et
+              // permet de rapprocher un paiement d'un participant.
+              name: paymentLabel(
+                share.member.lastName,
+                share.member.firstName,
+                share.team.tournament.name,
+                share.amountCents,
+              ),
+              description: `Équipe ${share.team.name} · réf. ${share.member.reference}`,
             },
           },
         },
@@ -83,6 +99,7 @@ export async function POST(request: Request) {
       where: { id: body.teamId },
       include: {
         tournament: { select: { name: true, entryFeeCents: true, teamSize: true } },
+        captain: { select: { firstName: true, lastName: true } },
         shares: { where: { status: 'PENDING' }, select: { id: true, amountCents: true } },
       },
     });
@@ -95,6 +112,7 @@ export async function POST(request: Request) {
     }
 
     const amount = team.shares.reduce((sum, s) => sum + s.amountCents, 0);
+    const captainUser = team.captain;
     const checkout = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_email: team.contactEmail,
@@ -105,8 +123,13 @@ export async function POST(request: Request) {
             currency: 'eur',
             unit_amount: amount,
             product_data: {
-              name: `${team.tournament.name} — ${team.name}`,
-              description: `${team.shares.length} place(s) restante(s)`,
+              name: paymentLabel(
+                captainUser.lastName,
+                captainUser.firstName,
+                team.tournament.name,
+                amount,
+              ),
+              description: `Équipe ${team.name} · ${team.shares.length} place(s) restante(s)`,
             },
           },
         },
@@ -124,7 +147,7 @@ export async function POST(request: Request) {
       where: { id: body.registrationId },
       include: {
         tournament: { select: { name: true, entryFeeCents: true, teamSize: true } },
-        user: { select: { email: true } },
+        user: { select: { email: true, firstName: true, lastName: true } },
       },
     });
     if (!registration || registration.userId !== session.sub) {
@@ -143,7 +166,15 @@ export async function POST(request: Request) {
           price_data: {
             currency: 'eur',
             unit_amount: totalDueCents(registration.tournament),
-            product_data: { name: `R.A.G.E LAN 2 — ${registration.tournament.name}` },
+            product_data: {
+              name: paymentLabel(
+                registration.user.lastName,
+                registration.user.firstName,
+                registration.tournament.name,
+                totalDueCents(registration.tournament),
+              ),
+              description: `Réf. ${registration.reference}`,
+            },
           },
         },
       ],

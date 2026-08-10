@@ -2,6 +2,7 @@ import 'server-only';
 import Stripe from 'stripe';
 import { prisma } from './prisma';
 import { isFullyPaid, isSeatReserved } from './pricing';
+import { sendWaitlistPromotedEmail } from './email';
 
 /** Client Stripe paresseux : l'absence de clé ne doit pas casser le build. */
 let cached: Stripe | null = null;
@@ -90,6 +91,104 @@ export async function markTeamFullyPaid(teamId: string, method: string) {
 }
 
 /**
+ * Une place s'est libérée : on promeut le plus ancien inscrit en liste
+ * d'attente, autant de fois qu'il reste de places.
+ *
+ * Le promu n'a rien payé — c'est le principe de la liste d'attente : il
+ * règlera sur place le jour J.
+ */
+export async function promoteFromWaitlist(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { maxPlayers: true, name: true },
+  });
+  if (!tournament) return { promoted: 0 };
+
+  const taken = await prisma.registration.count({
+    where: { tournamentId, status: { in: ['PENDING', 'CONFIRMED', 'CHECKED_IN'] } },
+  });
+  const free = tournament.maxPlayers - taken;
+  if (free <= 0) return { promoted: 0 };
+
+  const waiting = await prisma.registration.findMany({
+    where: { tournamentId, status: 'WAITLIST' },
+    // Premier arrivé, premier servi.
+    orderBy: { createdAt: 'asc' },
+    take: free,
+    include: { user: { select: { email: true, firstName: true } } },
+  });
+  if (waiting.length === 0) return { promoted: 0 };
+
+  await prisma.registration.updateMany({
+    where: { id: { in: waiting.map((w) => w.id) } },
+    data: { status: 'PENDING', paymentStatus: 'PAY_ON_SITE' },
+  });
+
+  for (const w of waiting) {
+    await sendWaitlistPromotedEmail({
+      to: w.user.email,
+      firstName: w.user.firstName,
+      tournamentName: tournament.name,
+      reference: w.reference,
+    });
+  }
+
+  return { promoted: waiting.length };
+}
+
+/**
+ * Un remboursement a été constaté chez Stripe : le participant est
+ * désinscrit et sa place remise en jeu.
+ */
+export async function handleRefund(stripeSessionId: string | null, paymentIntentId: string | null) {
+  const payment = await prisma.payment.findFirst({
+    where: {
+      OR: [
+        stripeSessionId ? { stripeSessionId } : undefined,
+        paymentIntentId ? { stripePaymentIntentId: paymentIntentId } : undefined,
+      ].filter(Boolean) as never,
+    },
+    include: { registration: { select: { id: true, tournamentId: true } } },
+  });
+
+  if (payment?.registration) {
+    await prisma.$transaction([
+      prisma.payment.update({
+        where: { id: payment.id },
+        data: { status: 'REFUNDED' },
+      }),
+      prisma.registration.update({
+        where: { id: payment.registration.id },
+        data: { status: 'CANCELLED', paymentStatus: 'REFUNDED' },
+      }),
+    ]);
+    await promoteFromWaitlist(payment.registration.tournamentId);
+    return { kind: 'solo' as const };
+  }
+
+  // Sinon, il peut s'agir d'une part d'équipe.
+  const share = stripeSessionId
+    ? await prisma.paymentShare.findUnique({
+        where: { stripeSessionId },
+        include: { team: { select: { id: true, tournamentId: true } } },
+      })
+    : null;
+
+  if (share) {
+    await prisma.paymentShare.update({
+      where: { id: share.id },
+      data: { status: 'REFUNDED' },
+    });
+    // L'équipe peut repasser sous le seuil de réservation.
+    await syncTeamPaymentState(share.team.id);
+    await promoteFromWaitlist(share.team.tournamentId);
+    return { kind: 'share' as const };
+  }
+
+  return { kind: 'unknown' as const };
+}
+
+/**
  * Paiement intégral d'un joueur solo : la place passe en attente de
  * validation admin.
  */
@@ -97,6 +196,9 @@ export async function markSoloRegistrationPaid(
   registrationId: string,
   method: string,
   stripeSessionId?: string,
+  // Conservé pour retrouver le paiement lors d'un remboursement :
+  // l'événement `charge.refunded` ne porte que le PaymentIntent.
+  paymentIntentId?: string | null,
 ) {
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
@@ -118,6 +220,7 @@ export async function markSoloRegistrationPaid(
         status: 'PAID_ONLINE',
         method,
         stripeSessionId: stripeSessionId ?? null,
+        stripePaymentIntentId: paymentIntentId ?? null,
         paidAt: new Date(),
       },
     }),

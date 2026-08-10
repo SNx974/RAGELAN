@@ -21,6 +21,19 @@ export async function registerAsCaptain(
   const session = await getSession();
   if (!session) return { error: 'Connexion requise.' };
 
+  // Un compte créé par l'organisation sert à gérer l'événement, pas à
+  // y jouer.
+  const account = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { canRegister: true },
+  });
+  if (!account?.canRegister) {
+    return {
+      error:
+        'Ce compte est un compte de gestion : il ne peut pas s’inscrire à un tournoi. Crée un compte joueur.',
+    };
+  }
+
   const parsed = captainRegistrationSchema.safeParse(input);
   if (!parsed.success) {
     return { error: 'Formulaire invalide.', fieldErrors: parsed.error.flatten().fieldErrors };
@@ -219,6 +232,19 @@ export async function registerAsSolo(input: unknown) {
   const session = await getSession();
   if (!session) return { error: 'Connexion requise.' };
 
+  // Un compte créé par l'organisation sert à gérer l'événement, pas à
+  // y jouer.
+  const account = await prisma.user.findUnique({
+    where: { id: session.sub },
+    select: { canRegister: true },
+  });
+  if (!account?.canRegister) {
+    return {
+      error:
+        'Ce compte est un compte de gestion : il ne peut pas s’inscrire à un tournoi. Crée un compte joueur.',
+    };
+  }
+
   const parsed = soloRegistrationSchema.safeParse(input);
   if (!parsed.success) return { error: 'Formulaire invalide.' };
   const data = parsed.data;
@@ -236,9 +262,10 @@ export async function registerAsSolo(input: unknown) {
     },
   });
 
-  if (taken >= tournament.maxPlayers) {
-    return { error: 'Ce tournoi est complet.' };
-  }
+  // Tournoi plein : on accepte quand même, en liste d'attente. Rien
+  // n'est à payer maintenant — le règlement se fera sur place si une
+  // place se libère.
+  const waitlisted = taken >= tournament.maxPlayers;
 
   let registrationId: string;
   try {
@@ -252,7 +279,7 @@ export async function registerAsSolo(input: unknown) {
         type: 'SOLO',
         reference: generateReference(),
         status: 'WAITLIST',
-        paymentStatus: 'PENDING',
+        paymentStatus: waitlisted ? 'PAY_ON_SITE' : 'PENDING',
         ign: data.ign || null,
         notes: data.lookingForTeam ? 'Cherche une équipe' : null,
       },
@@ -276,7 +303,7 @@ export async function registerAsSolo(input: unknown) {
 
   revalidatePath('/dashboard');
   revalidatePath(`/tournois/${tournament.slug}`);
-  return { success: true as const, registrationId };
+  return { success: true as const, registrationId, waitlisted };
 }
 
 /** Check-in staff le jour J. */

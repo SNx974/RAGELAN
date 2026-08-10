@@ -102,6 +102,7 @@ enum ApprovalStatus {
 enum ShareStatus {
   PENDING
   PAID
+  REFUNDED
   CANCELLED
 }
 
@@ -126,6 +127,11 @@ model User {
   role          Role      @default(PLAYER)
   emailVerified DateTime? @map("email_verified")
   avatarUrl     String?   @map("avatar_url")
+
+  /// Un compte créé par l'organisation sert à gérer l'événement, pas à
+  /// y jouer : il ne peut s'inscrire à aucun tournoi.
+  canRegister   Boolean   @default(true) @map("can_register")
+  createdByAdmin Boolean  @default(false) @map("created_by_admin")
 
   // Décharge parentale obligatoire pour les mineurs
   guardianName  String? @map("guardian_name") @db.VarChar(160)

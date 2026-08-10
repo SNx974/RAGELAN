@@ -14,6 +14,7 @@ import {
 import { sendSoloDecisionEmail, sendTeamDecisionEmail } from '@/lib/email';
 import { layoutSeats } from '@/lib/floorplan';
 import { generateReference } from '@/lib/reference';
+import { promoteFromWaitlist } from '@/lib/payments';
 import { TOURNAMENTS } from '@/lib/tournaments-data';
 
 /**
@@ -444,6 +445,76 @@ export async function reviewRegistration(
 
   revalidatePath('/admin/inscriptions');
   return { success: true };
+}
+
+/**
+ * Change à la main le statut d'un participant.
+ *
+ * Retirer quelqu'un libère une place : on promeut aussitôt le premier
+ * de la liste d'attente, conformément à la règle « promotion
+ * automatique ».
+ */
+export async function setRegistrationStatus(
+  registrationId: string,
+  status: 'PENDING' | 'CONFIRMED' | 'WAITLIST' | 'CANCELLED',
+) {
+  const session = await requireRole('ADMIN');
+
+  const registration = await prisma.registration.update({
+    where: { id: registrationId },
+    data: {
+      status,
+      // Une place non retenue ne se paie pas d'avance : le règlement
+      // se fera sur place si elle se libère.
+      ...(status === 'WAITLIST' ? { paymentStatus: 'PAY_ON_SITE' as const } : {}),
+    },
+    select: { tournamentId: true, userId: true },
+  });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: session.sub,
+      action: 'registration.status',
+      entityType: 'registration',
+      entityId: registrationId,
+      payload: { status },
+    },
+  });
+
+  let promoted = 0;
+  if (status === 'CANCELLED' || status === 'WAITLIST') {
+    ({ promoted } = await promoteFromWaitlist(registration.tournamentId));
+  }
+
+  revalidatePath('/admin/participants');
+  return { success: true as const, promoted };
+}
+
+/** Supprime définitivement une inscription et libère la place. */
+export async function deleteRegistration(registrationId: string) {
+  const session = await requireRole('ADMIN');
+
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: { tournamentId: true, teamId: true },
+  });
+  if (!registration) return { error: 'Inscription introuvable.' };
+
+  await prisma.registration.delete({ where: { id: registrationId } });
+
+  await prisma.auditLog.create({
+    data: {
+      actorId: session.sub,
+      action: 'registration.delete',
+      entityType: 'registration',
+      entityId: registrationId,
+    },
+  });
+
+  const { promoted } = await promoteFromWaitlist(registration.tournamentId);
+
+  revalidatePath('/admin/participants');
+  return { success: true as const, promoted };
 }
 
 /** Génère (ou régénère) l'arbre de tournoi. */
