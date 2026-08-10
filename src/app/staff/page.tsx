@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ClipboardCheck, GitBranch, MapPinned, Download } from 'lucide-react';
+import { ClipboardCheck, GitBranch, MapPinned, Download, ScanLine } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
 import { getCurrentUser, hasRole } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -47,12 +47,20 @@ export default async function StaffHomePage() {
               {tournaments.length > 1 ? 's' : ''} · {checkedIn} joueurs déjà présents
             </p>
           </div>
-          <Button asChild size="lg">
-            <Link href="/staff/checkin">
-              <ClipboardCheck />
-              Ouvrir le check-in
-            </Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="lg">
+              <Link href="/staff/scan">
+                <ScanLine />
+                Scanner un QR
+              </Link>
+            </Button>
+            <Button asChild size="lg" variant="outline">
+              <Link href="/staff/checkin">
+                <ClipboardCheck />
+                Check-in par nom
+              </Link>
+            </Button>
+          </div>
         </div>
       </Reveal>
 

@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { getSession, requireTournamentAccess } from '@/lib/auth';
 import { captainRegistrationSchema, soloRegistrationSchema, validateLogo } from '@/lib/validations';
 import { generateShareToken, shareAmountCents, totalDueCents } from '@/lib/pricing';
+import { generateReference } from '@/lib/reference';
 import { sendRegistrationReceivedEmail } from '@/lib/email';
 import { formatPrice } from '@/lib/utils';
 
@@ -90,6 +91,7 @@ export async function registerAsCaptain(
                 firstName: captain.firstName,
                 lastName: captain.lastName,
                 pseudo: captain.pseudo ?? data.teamName,
+                reference: generateReference(),
                 email: captain.email,
                 phone: captain.phone,
                 birthDate: captain.birthDate,
@@ -101,6 +103,7 @@ export async function registerAsCaptain(
                 firstName: m.firstName,
                 lastName: m.lastName,
                 pseudo: m.pseudo,
+                reference: generateReference(),
                 birthDate: m.birthDate,
                 email: m.email || null,
                 phone: m.phone || null,
@@ -134,6 +137,7 @@ export async function registerAsCaptain(
           tournamentId: tournament.id,
           teamId: team.id,
           type: 'TEAM_CAPTAIN',
+          reference: generateReference(),
           // Tant qu'aucune part n'est réglée, l'équipe ne consomme
           // aucune place : elle reste en liste d'attente.
           status: 'WAITLIST',
@@ -246,6 +250,7 @@ export async function registerAsSolo(input: unknown) {
         userId: session.sub,
         tournamentId: tournament.id,
         type: 'SOLO',
+        reference: generateReference(),
         status: 'WAITLIST',
         paymentStatus: 'PENDING',
         ign: data.ign || null,

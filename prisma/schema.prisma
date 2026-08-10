@@ -143,6 +143,7 @@ model User {
   payments          Payment[]
   auditLogs         AuditLog[]          @relation("AuditActor")
   checkInsPerformed Registration[]      @relation("CheckedInBy")
+  memberCheckIns    TeamMember[]        @relation("MemberCheckedInBy")
   sessions          Session[]
 
   @@index([role])
@@ -301,11 +302,19 @@ model TeamMember {
   isCaptain  Boolean @default(false) @map("is_captain")
   isSubstitute Boolean @default(false) @map("is_substitute")
 
+  /// Chaque joueur d'équipe pointe individuellement : il lui faut donc
+  /// sa propre référence et son propre état de présence. Seul le
+  /// capitaine porte une Registration.
+  reference     String    @unique @db.VarChar(16)
+  checkedInAt   DateTime? @map("checked_in_at")
+  checkedInById String?   @map("checked_in_by_id") @db.Uuid
+
   createdAt DateTime @default(now()) @map("created_at")
 
-  team  Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  user  User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
-  share PaymentShare?
+  team        Team          @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  share       PaymentShare?
+  checkedInBy User?         @relation("MemberCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
 
   @@unique([teamId, pseudo], map: "uq_member_pseudo_per_team")
   @@index([userId])
@@ -319,6 +328,10 @@ model Registration {
   userId       String @map("user_id") @db.Uuid
   tournamentId String @map("tournament_id") @db.Uuid
   teamId       String? @map("team_id") @db.Uuid
+
+  /// Référence lisible (RAGE-7K2M9Q) : contenu du QR code, et clé de
+  /// recherche pour un check-in manuel quand le scan échoue.
+  reference String @unique @db.VarChar(16)
 
   type          RegistrationType   @default(SOLO)
   status        RegistrationStatus @default(PENDING)

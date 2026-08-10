@@ -13,6 +13,7 @@ import {
 } from '@/lib/validations';
 import { sendSoloDecisionEmail, sendTeamDecisionEmail } from '@/lib/email';
 import { layoutSeats } from '@/lib/floorplan';
+import { generateReference } from '@/lib/reference';
 import { TOURNAMENTS } from '@/lib/tournaments-data';
 
 /**
@@ -359,6 +360,7 @@ export async function createTeamManually(input: unknown) {
               firstName: m.firstName,
               lastName: m.lastName,
               pseudo: m.pseudo,
+              reference: generateReference(),
               birthDate: m.birthDate,
               isCaptain: i === 0,
               isSubstitute: m.isSubstitute,
@@ -374,6 +376,7 @@ export async function createTeamManually(input: unknown) {
           tournamentId: tournament.id,
           teamId: created.id,
           type: 'TEAM_CAPTAIN',
+          reference: generateReference(),
           status: 'CONFIRMED',
           paymentStatus: 'PAY_ON_SITE',
         },

@@ -157,6 +157,9 @@ CREATE TABLE "team_members" (
     "guardian_phone" VARCHAR(30),
     "is_captain" BOOLEAN NOT NULL DEFAULT false,
     "is_substitute" BOOLEAN NOT NULL DEFAULT false,
+    "reference" VARCHAR(16) NOT NULL,
+    "checked_in_at" TIMESTAMP(3),
+    "checked_in_by_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "team_members_pkey" PRIMARY KEY ("id")
@@ -168,6 +171,7 @@ CREATE TABLE "registrations" (
     "user_id" UUID NOT NULL,
     "tournament_id" UUID NOT NULL,
     "team_id" UUID,
+    "reference" VARCHAR(16) NOT NULL,
     "type" "RegistrationType" NOT NULL DEFAULT 'SOLO',
     "status" "RegistrationStatus" NOT NULL DEFAULT 'PENDING',
     "payment_status" "PaymentStatus" NOT NULL DEFAULT 'PENDING',
@@ -357,10 +361,16 @@ CREATE UNIQUE INDEX "uq_team_seed_per_tournament" ON "teams"("tournament_id", "s
 CREATE UNIQUE INDEX "uq_one_team_per_account" ON "teams"("captain_id");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "team_members_reference_key" ON "team_members"("reference");
+
+-- CreateIndex
 CREATE INDEX "team_members_user_id_idx" ON "team_members"("user_id");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "uq_member_pseudo_per_team" ON "team_members"("team_id", "pseudo");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "registrations_reference_key" ON "registrations"("reference");
 
 -- CreateIndex
 CREATE INDEX "registrations_tournament_id_status_idx" ON "registrations"("tournament_id", "status");
@@ -457,6 +467,9 @@ ALTER TABLE "team_members" ADD CONSTRAINT "team_members_team_id_fkey" FOREIGN KE
 
 -- AddForeignKey
 ALTER TABLE "team_members" ADD CONSTRAINT "team_members_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "team_members" ADD CONSTRAINT "team_members_checked_in_by_id_fkey" FOREIGN KEY ("checked_in_by_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "registrations" ADD CONSTRAINT "registrations_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
